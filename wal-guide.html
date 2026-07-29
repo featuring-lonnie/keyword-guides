@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<title>WAL(Write-Ahead Logging) — 주니어 개발자를 위한 안내서</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-soft: #161b22;
+    --bg-card: #1a2029;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --text-faint: #6b7683;
+    --accent: #58a6ff;
+    --accent-2: #7ee787;
+    --cmd: #ff9e64;
+    --qry: #79c0ff;
+    --warn: #f0b429;
+    --danger: #f47067;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+    --maxw: 860px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f6f8fa;
+      --bg-card: #ffffff;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --text-dim: #57606a;
+      --text-faint: #8c959f;
+      --accent: #0969da;
+      --accent-2: #1a7f37;
+      --cmd: #bc4c00;
+      --qry: #0550ae;
+      --warn: #9a6700;
+      --danger: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(1200px 400px at 50% -50%, rgba(88,166,255,0.10), transparent);
+  }
+  .eyebrow {
+    font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 18px;
+    font-weight: 800; letter-spacing: -0.02em;
+  }
+  .lede { font-size: 19px; color: var(--text-dim); max-width: 680px; margin: 0; }
+  .quote-hero {
+    margin: 22px 0 0; padding: 12px 18px; border-left: 3px solid var(--accent);
+    background: var(--bg-soft); border-radius: 0 8px 8px 0; font-size: 16px; color: var(--text-dim);
+  }
+  .quote-hero strong { color: var(--text); }
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .pill {
+    font-size: 13px; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  nav.toc {
+    margin: 34px 0; padding: 22px 24px; background: var(--bg-soft);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  nav.toc h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-faint); margin: 0 0 14px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 34px; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  nav.toc li { margin: 5px 0; break-inside: avoid; }
+  nav.toc a { color: var(--text); text-decoration: none; font-size: 15px; }
+  nav.toc a:hover { color: var(--accent); }
+
+  main { padding: 10px 0 80px; }
+  section { padding: 34px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2.sec {
+    font-size: clamp(24px, 4vw, 32px); font-weight: 800; letter-spacing: -0.02em;
+    margin: 0 0 6px; scroll-margin-top: 20px;
+  }
+  h2.sec .num {
+    display: inline-block; font-family: var(--mono); font-size: 15px; color: var(--accent);
+    background: rgba(88,166,255,0.12); border-radius: 8px; padding: 2px 10px; margin-right: 12px;
+    vertical-align: middle; font-weight: 600;
+  }
+  h3 { font-size: 20px; font-weight: 700; margin: 30px 0 10px; letter-spacing: -0.01em; }
+  h4 { font-size: 16px; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+  p { margin: 12px 0; }
+  strong { color: var(--text); font-weight: 700; }
+  a { color: var(--accent); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 7px 0; }
+
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    padding: 1.5px 6px; border-radius: 6px; color: var(--accent-2);
+  }
+  pre {
+    background: #0b0e13; border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; margin: 16px 0; position: relative;
+    font-size: 14px; line-height: 1.6;
+  }
+  @media (prefers-color-scheme: light) { pre { background: #f6f8fa; } }
+  pre code { background: none; border: none; padding: 0; color: var(--text); font-size: 14px; }
+  .c-kw { color: #ff7b72; } .c-fn { color: #d2a8ff; } .c-str { color: #a5d6ff; }
+  .c-com { color: var(--text-faint); font-style: italic; } .c-num { color: #79c0ff; }
+  .c-ok { color: var(--accent-2); } .c-bad { color: var(--danger); }
+  @media (prefers-color-scheme: light) {
+    .c-kw { color: #cf222e; } .c-fn { color: #8250df; } .c-str { color: #0a3069; } .c-num { color: #0550ae; }
+  }
+  .code-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-faint); margin: 18px 0 -8px;
+  }
+
+  .box {
+    margin: 20px 0; padding: 16px 20px; border-radius: 12px;
+    border: 1px solid var(--border); border-left-width: 4px; background: var(--bg-card);
+  }
+  .box .tag { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+  .box p:first-of-type { margin-top: 4px; }
+  .box p:last-child { margin-bottom: 0; }
+  .box.tip { border-left-color: var(--accent-2); }
+  .box.tip .tag { color: var(--accent-2); }
+  .box.warn { border-left-color: var(--warn); }
+  .box.warn .tag { color: var(--warn); }
+  .box.danger { border-left-color: var(--danger); }
+  .box.danger .tag { color: var(--danger); }
+  .box.note { border-left-color: var(--accent); }
+  .box.note .tag { color: var(--accent); }
+  .box.analogy { border-left-color: #d2a8ff; }
+  .box.analogy .tag { color: #d2a8ff; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0; }
+  @media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+  .split .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--bg-card); }
+  .split .card.cmd { border-top: 3px solid var(--cmd); }
+  .split .card.qry { border-top: 3px solid var(--qry); }
+  .split .card h4 { margin-top: 0; font-size: 18px; }
+  .split .card.cmd h4 { color: var(--cmd); }
+  .split .card.qry h4 { color: var(--qry); }
+  .split .card ul { padding-left: 18px; margin: 8px 0 0; font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: none; }
+
+  .diagram {
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre;
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; overflow-x: auto; color: var(--text-dim); margin: 18px 0;
+  }
+  .kicker { color: var(--text-dim); font-size: 15px; margin: 2px 0 18px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 22px 0; }
+  @media (max-width: 640px) { .stat-row { grid-template-columns: 1fr; } }
+  .stat {
+    border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: var(--bg-card);
+  }
+  .stat .big { font-size: 26px; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+  .ladder { counter-reset: step; margin: 20px 0; padding: 0; list-style: none; }
+  .ladder li {
+    position: relative; padding: 14px 18px 14px 60px; margin: 12px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .ladder li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 16px; top: 14px; width: 30px; height: 30px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 15px;
+  }
+  .ladder li strong { display: block; margin-bottom: 3px; }
+
+  .timeline { margin: 20px 0; padding: 0; list-style: none; }
+  .timeline li {
+    position: relative; padding: 12px 18px 12px 110px; margin: 10px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .timeline li .yr {
+    position: absolute; left: 16px; top: 14px;
+    font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--accent);
+  }
+  .timeline li strong { display: block; margin-bottom: 2px; }
+  .timeline li span.desc { font-size: 15px; color: var(--text-dim); }
+  @media (max-width: 640px) {
+    .timeline li { padding-left: 18px; padding-top: 38px; }
+  }
+
+  footer { padding: 40px 0 60px; color: var(--text-faint); font-size: 14px; }
+  footer h3 { color: var(--text-dim); font-size: 15px; }
+  footer a { color: var(--text-dim); }
+  footer ul { padding-left: 20px; }
+
+  .tldr {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(126,231,135,0.06));
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin: 24px 0;
+  }
+  .tldr .tag { color: var(--accent); font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+  .tldr p { margin: 8px 0 0; font-size: 16px; }
+
+  /* ===== 모바일 대응 (mobile) ===== */
+  html { -webkit-text-size-adjust: 100%; }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px; }
+    header.hero { padding: 48px 0 34px; }
+    h1 { font-size: clamp(25px, 7.2vw, 34px); }
+    .lede { font-size: 17px; }
+    .quote-hero { font-size: 15px; padding: 11px 15px; }
+    .pill { font-size: 12px; padding: 5px 11px; }
+    main { padding: 6px 0 56px; }
+    section { padding: 26px 0; }
+    h2.sec { font-size: clamp(21px, 5.6vw, 26px); }
+    h2.sec .num { font-size: 13px; padding: 2px 8px; margin-right: 9px; }
+    h3 { font-size: 18px; }
+
+    /* 긴 식별자(innodb_flush_log_at_trx_commit 등)가 표·문단을 밀어내지 않도록 */
+    /* 긴 토큰은 code 안에만 있으므로 줄바꿈 허용은 code로 한정한다.
+       셀 전체에 걸면 'PostgreSQL'이 글자 단위로 쪼개진다. */
+    code { overflow-wrap: anywhere; }
+    th, td { padding: 9px 10px; font-size: 14px; }
+    th { font-size: 12px; }
+    td code, th code { font-size: 0.82em; }
+
+    pre { padding: 14px 15px; }
+    pre, pre code { font-size: 13px; }
+    .diagram { font-size: 11px; padding: 15px; line-height: 1.45; }
+    .box { padding: 14px 16px; }
+    .tldr { padding: 17px 18px; }
+    .tldr p { font-size: 15px; }
+    .stat .big { font-size: 23px; }
+    .ladder li { padding: 13px 15px 13px 52px; }
+    .ladder li::before { left: 13px; top: 13px; width: 27px; height: 27px; font-size: 14px; }
+    nav.toc { padding: 18px 18px; margin: 26px 0; }
+    footer { padding: 30px 0 48px; }
+
+    /* index.html 카드 */
+    a.card { padding: 17px 18px; }
+    a.card h3 { font-size: 19px; }
+    a.card .date { margin-left: 0; width: 100%; order: 3; }
+    a.card .desc, a.card .quote { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
+    <h1>WAL — Write-Ahead Logging<br>왜 모든 시스템은 로그를 먼저 쓰는가</h1>
+    <p class="lede">커밋이 성공했다는 응답을 받았다. 0.1초 뒤 서버의 전원이 뽑혔다. 그 데이터는 살아있을까? 살아있다면, DB는 대체 무엇을 믿고 "성공"이라고 대답한 걸까? 그 답이 WAL이다.</p>
+    <p class="quote-hero">💬 <strong>"금주의 키워드 : WAL — 데이터의 무결성, 일관성 유지를 위한 쓰기 전략. Git의 commit log부터 Kafka의 append-only log, 이벤트 소싱의 event log까지"</strong></p>
+    <div class="meta-row">
+      <span class="pill">☕ 읽는 데 ~20분</span>
+      <span class="pill">🕰️ 1992 ARIES 논문부터 Kafka·이벤트 소싱까지</span>
+      <span class="pill">🐘 PostgreSQL·Django 스택으로 연결</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TOC ============ -->
+<div class="wrap">
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#intro">커밋 성공 0.1초 뒤, 전원이 뽑혔다</a></li>
+      <li><a href="#inplace">제자리 수정이 위험한 이유</a></li>
+      <li><a href="#protocol">WAL 프로토콜 — 로그가 먼저다</a></li>
+      <li><a href="#faster">두 번 쓰는데 왜 더 빠른가</a></li>
+      <li><a href="#recovery">크래시 복구는 어떻게 일어나는가</a></li>
+      <li><a href="#dial">내구성은 스위치가 아니라 다이얼</a></li>
+      <li><a href="#postgres">pg_wal에서 실제로 벌어지는 일</a></li>
+      <li><a href="#log-as-truth">로그가 부산물에서 원본이 되는 순간</a></li>
+      <li><a href="#zoo">같은 패턴 도감 — Git·Redis·RocksDB·SQLite</a></li>
+      <li><a href="#cheatsheet">한 장 요약 치트시트</a></li>
+    </ol>
+  </nav>
+</div>
+
+<main class="wrap">
+
+  <!-- ============ 00 ============ -->
+  <section id="intro">
+    <h2 class="sec"><span class="num">00</span>커밋 성공 0.1초 뒤, 전원이 뽑혔다</h2>
+    <p class="kicker">"성공"이라는 응답은 정확히 무엇을 약속하는가</p>
+
+    <p>Django에서 이런 코드를 짰다고 하자.</p>
+
+<pre><code><span class="c-kw">with</span> transaction.<span class="c-fn">atomic</span>():
+    Order.objects.<span class="c-fn">filter</span>(pk=order_id).<span class="c-fn">update</span>(status=<span class="c-str">"PAID"</span>)
+<span class="c-com"># ← 이 줄을 지나는 순간 COMMIT이 끝났다</span>
+<span class="c-kw">return</span> Response({<span class="c-str">"ok"</span>: <span class="c-kw">True</span>})</code></pre>
+
+    <p><code>transaction.atomic()</code> 블록을 빠져나오면 PostgreSQL은 <code>COMMIT</code>을 처리하고 성공을 돌려준다. 그 직후 서버실 차단기가 내려간다. 다시 부팅했을 때 그 주문은 <code>PAID</code>일까?</p>
+
+    <p><strong>답은 "그렇다"이다.</strong> 그런데 이상하다. 커밋 시점에 실제 테이블 데이터 파일은 아직 디스크에 안 써졌을 가능성이 매우 높기 때문이다. 어떤 경우엔 몇 분 뒤에야 써진다. 그런데도 데이터는 살아남는다.</p>
+
+    <p>그 사이의 간극을 메우는 것이 <strong>WAL(Write-Ahead Log, 선행 기입 로그)</strong>이다. 그리고 이 아이디어는 DB에만 있는 게 아니라, Kafka·이벤트 소싱·Redis·RocksDB·심지어 Git까지 관통한다.</p>
+
+    <div class="box note">
+      <span class="tag">이 문서가 답하는 것</span>
+      <p>① DB는 무엇을 믿고 "커밋 성공"이라고 대답하는가 ② 두 번 쓰는 WAL이 왜 오히려 더 빠른가 ③ 로그가 "복구용 부산물"에서 "데이터의 원본"으로 승격되면 무슨 일이 벌어지는가(Kafka·이벤트 소싱·CDC). 다 읽으면 <code>synchronous_commit</code>, <code>appendfsync</code>, Kafka 파티션, 이벤트 소싱이 <strong>전부 같은 아이디어의 변주</strong>로 보이기 시작한다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 01 ============ -->
+  <section id="inplace">
+    <h2 class="sec"><span class="num">01</span>제자리 수정이 위험한 이유</h2>
+    <p class="kicker">디스크는 당신이 기대하는 만큼 원자적이지 않다</p>
+
+    <p>WAL이 없는 세상을 상상해 보자. DB가 <code>UPDATE</code>를 받으면 해당 데이터가 들어있는 디스크 위치를 찾아가 그 자리를 새 값으로 덮어쓴다. 이것을 <strong>제자리 수정(in-place update)</strong>이라고 한다. 직관적이고, 그래서 위험하다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 페이지(page)</span>
+      <p><strong>페이지</strong> = DB가 디스크와 데이터를 주고받는 최소 단위 블록. PostgreSQL의 기본 페이지 크기는 <strong>8KB</strong>다. 행 하나만 바꿔도 DB는 그 행이 들어있는 8KB 페이지 전체를 읽고, 고치고, 다시 쓴다.</p>
+    </div>
+
+    <p>문제는 8KB 페이지 하나를 쓰는 일이 <strong>하나의 원자적 동작이 아니라는 것</strong>이다. 디스크는 그보다 작은 섹터 단위로 기록하고, 그 사이 어디서든 전원이 끊길 수 있다. 결과는 <strong>앞부분은 새 값, 뒷부분은 옛 값</strong>인 반쪽짜리 페이지다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 찢어진 쓰기(torn write / torn page)</span>
+      <p>페이지 하나가 디스크에 <strong>부분적으로만</strong> 기록된 상태. 새 값도 옛 값도 아닌, 어느 쪽으로도 해석할 수 없는 쓰레기가 된다. 복구가 불가능한 이유는 <strong>"원래 뭐였는지"와 "뭐가 되려 했는지"를 둘 다 잃었기 때문</strong>이다.</p>
+    </div>
+
+    <div class="diagram">제자리 수정 중 전원 차단
+─────────────────────────────────────────────
+  8KB 페이지 (주문 #1042 포함)
+
+  쓰기 전:  [ 기존값 | 기존값 | 기존값 | 기존값 ]
+  쓰는 중:  [ 새 값  | 새 값  |   💥 전원 차단
+  쓰기 후:  [ 새 값  | 새 값  | 기존값 | 기존값 ]   ← 찢어진 페이지
+                              ↑
+                       여긴 옛날 데이터
+                       → 체크섬 불일치, 해석 불가
+                       → 되돌릴 수도, 밀어붙일 수도 없음</div>
+
+    <p>여기에 더 큰 문제가 겹친다. 트랜잭션 하나가 여러 페이지를 건드리는 경우다. 계좌 이체는 출금 행과 입금 행이 서로 다른 페이지에 있다. 출금 페이지만 써지고 입금 페이지를 쓰기 전에 죽으면, 돈이 증발한다. 개별 페이지가 멀쩡해도 <strong>전체로 보면 일관성이 깨진 상태</strong>다.</p>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰</span>
+      <p>제자리 수정의 진짜 문제는 "쓰다가 죽는 것"이 아니다. <strong>죽고 난 뒤에 무슨 일이 있었는지 알아낼 방법이 없다는 것</strong>이다. 원본을 덮어쓰는 순간 과거가 사라지고, 작업이 끝나지 않았으므로 미래도 없다. 복구는 <strong>정보</strong>의 문제이지 <strong>운</strong>의 문제가 아니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 02 ============ -->
+  <section id="protocol">
+    <h2 class="sec"><span class="num">02</span>WAL 프로토콜 — 로그가 먼저다</h2>
+    <p class="kicker">규칙은 단 하나, 순서</p>
+
+    <p>해법은 놀랄 만큼 단순하다. <strong>데이터 파일을 건드리기 전에, 무엇을 할 것인지를 별도의 로그 파일에 먼저 기록하고 그 로그가 디스크에 확실히 안착한 것을 확인한다.</strong> 그게 전부다. 이것이 WAL(Write-Ahead Logging) 프로토콜이다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: WAL 레코드</span>
+      <p>WAL에 들어가는 것은 SQL 문장이 아니라 <strong>물리적 변경 기록</strong>에 가깝다. "파일 X의 블록 Y, 오프셋 Z의 값을 A에서 B로 바꿨다" 같은 형태. 그래서 재실행했을 때 결과가 항상 같다(멱등하게 다룰 수 있다). 참고로 <strong>멱등(idempotent)</strong> = 여러 번 실행해도 결과가 한 번 실행한 것과 같은 성질.</p>
+    </div>
+
+    <div class="diagram">WAL 프로토콜의 순서
+─────────────────────────────────────────────────────────
+   1. 메모리 버퍼의 페이지를 수정         (아직 디스크 X)
+   2. 변경 내용을 WAL 레코드로 만들어 append
+   3. COMMIT 요청
+   4. WAL을 fsync()  ────────────▶  💾 디스크 안착 ✅
+   5. 클라이언트에게 "성공" 응답        ← 여기가 내구성 경계선
+   ...
+   (나중에, 백그라운드로)
+   6. 수정된 페이지를 데이터 파일에 기록  💾
+   7. 체크포인트: "6번까지 끝났다"고 표시
+
+   💥 4번 직후에 죽어도 → WAL에 다 있으므로 재실행(REDO) 가능
+   💥 6번 도중에 죽어도 → WAL에 다 있으므로 다시 하면 됨</div>
+
+    <p>여기서 <strong>4번과 5번의 순서</strong>가 모든 것을 결정한다. DB가 "커밋 성공"이라고 대답할 때 그것이 보증하는 것은 데이터 파일이 아니라 <strong>WAL이 디스크에 도달했다는 사실</strong>이다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: fsync()</span>
+      <p>파일에 <code>write()</code>를 해도 데이터는 보통 OS의 페이지 캐시(메모리)에만 있다. 전원이 나가면 사라진다. <strong><code>fsync()</code></strong>는 "이 파일의 내용을 물리 저장장치까지 확실히 밀어 넣고, 끝날 때까지 기다려라"라고 OS에 요구하는 시스템 콜이다. 느리지만, <strong>이게 없으면 내구성도 없다</strong>.</p>
+    </div>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰 — 이 문서에서 하나만 기억한다면</span>
+      <p>커밋 성공 = "데이터 파일에 반영됨"이 <strong>아니다</strong>. 커밋 성공 = <strong>"의도가 로그에 안전하게 기록됨"</strong>이다. 실제 데이터 파일 반영은 수 초~수 분 뒤에 백그라운드로 일어난다. 그 사이에 죽어도 괜찮은 이유는, 로그만 있으면 <strong>죽은 지점부터 다시 진행할 수 있기 때문</strong>이다.</p>
+    </div>
+
+    <div class="box analogy">
+      <span class="tag">🍽️ 비유 (보조 설명)</span>
+      <p>주방에서 요리를 시작하기 전에 주문서를 먼저 걸어둔다. 요리 도중 정전이 나도, 복구된 뒤 주문서를 보면 "3번 테이블 파스타, 면은 삶는 중이었다"를 알 수 있다. 주문서 없이 요리부터 시작했다면 반쯤 삶긴 면만 남고 그게 누구 것인지 영원히 알 수 없다. — 단, 비유는 여기까지다. 실제 WAL 레코드는 "주문 내용"보다 훨씬 저수준인 <strong>바이트 단위 변경 기록</strong>이다.</p>
+    </div>
+
+    <h3>WAL이 지키는 두 가지 규칙</h3>
+    <p>"로그를 먼저 쓴다"는 말은 사실 두 개의 규칙으로 나뉜다. 둘 다 필요하다.</p>
+
+    <div class="split">
+      <div class="card cmd">
+        <h4>⚙️ REDO 규칙</h4>
+        <p style="font-size:15px;margin:4px 0 0">커밋을 알리기 전에, 그 트랜잭션의 모든 변경 로그가 fsync되어 있어야 한다.</p>
+        <ul>
+          <li>지키면: 커밋했다고 말한 것은 크래시 후 <strong>반드시 되살릴 수 있다</strong></li>
+          <li>어기면: "성공" 응답을 준 주문이 사라진다 (내구성 위반)</li>
+        </ul>
+      </div>
+      <div class="card qry">
+        <h4>🔍 UNDO 규칙</h4>
+        <p style="font-size:15px;margin:4px 0 0">아직 커밋 안 된 변경이 담긴 페이지를 디스크에 쓰기 전에, 그 변경의 로그가 먼저 fsync되어 있어야 한다.</p>
+        <ul>
+          <li>지키면: 미완료 트랜잭션이 디스크에 새어나가도 <strong>되돌릴 수 있다</strong></li>
+          <li>어기면: 롤백해야 할 변경이 디스크에 영구히 남는다 (원자성 위반)</li>
+        </ul>
+      </div>
+    </div>
+
+    <p>DB는 메모리가 부족하면 커밋되지 않은 트랜잭션의 페이지도 디스크로 밀어낼 수 있다. UNDO 규칙은 그 상황을 위한 안전장치다. 이 둘을 합치면 <strong>"디스크에 있는 데이터 파일은 언제나 WAL로 설명 가능한 상태"</strong>라는 불변식이 성립한다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: LSN (Log Sequence Number)</span>
+      <p>WAL 레코드마다 붙는 <strong>단조 증가하는 위치 번호</strong>. PostgreSQL에서는 WAL 파일 전체를 하나의 긴 바이트 스트림으로 보고 그 안의 바이트 오프셋을 LSN으로 쓴다. 각 데이터 페이지에도 "이 페이지에 마지막으로 반영된 LSN"이 기록되어 있어서, 복구 시 <strong>어떤 로그를 다시 적용해야 하고 어떤 것은 이미 반영됐는지</strong>를 비교만으로 판단할 수 있다. 복제 지연을 측정할 때 쓰는 그 LSN이 바로 이것이다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 03 ============ -->
+  <section id="faster">
+    <h2 class="sec"><span class="num">03</span>두 번 쓰는데 왜 더 빠른가</h2>
+    <p class="kicker">WAL은 안전장치이면서 동시에 성능 최적화다</p>
+
+    <p>여기서 대부분의 주니어가 걸린다. WAL은 같은 변경을 <strong>두 번</strong> 쓴다(로그에 한 번, 데이터 파일에 한 번). 그런데 실제로는 WAL을 쓰는 쪽이 더 빠르다. PostgreSQL 7.1의 릴리스 노트도 WAL 도입을 안정성 개선인 동시에 <strong>성능 개선</strong>으로 소개했다. 왜일까?</p>
+
+    <h4>① 랜덤 쓰기가 순차 쓰기로 바뀐다</h4>
+    <p>한 트랜잭션이 건드리는 데이터 페이지들은 디스크 여기저기에 흩어져 있다. 이걸 커밋마다 직접 쓰면 <strong>랜덤 쓰기</strong>다. 반면 WAL은 파일 끝에 이어 붙이기만 하는 <strong>순차 쓰기(append-only)</strong>다. HDD 시절에는 헤드가 움직이지 않아 압도적으로 빨랐고, SSD·NVMe에서도 순차 쓰기가 컨트롤러와 가비지 컬렉션에 훨씬 유리하다.</p>
+
+    <h4>② fsync 한 번에 여러 트랜잭션을 태운다 (그룹 커밋)</h4>
+    <p><code>fsync()</code>는 비싸고, 비용의 대부분이 <strong>호출 횟수에 붙는 고정비</strong>다. 10개의 트랜잭션이 각자 fsync하면 10번이지만, 아주 짧게 기다렸다가 <strong>한 번의 fsync로 10개를 함께</strong> 내려보내면 1번이다. 흩어진 데이터 페이지들은 이렇게 묶을 수 없지만, 하나의 순차 로그 파일이라면 가능하다. 이것이 <strong>그룹 커밋(group commit)</strong>이다.</p>
+
+    <div class="stat-row">
+      <div class="stat"><div class="big">~수십 µs</div><div class="lbl">전원 손실 보호(PLP)가 있는 엔터프라이즈 SSD의 fsync 지연 — 인텔 Optane 측정 사례 약 43µs</div></div>
+      <div class="stat"><div class="big">~ms급</div><div class="lbl">일반 컨슈머 SSD의 fsync 지연. 같은 "SSD"라도 수십 배 차이가 난다</div></div>
+      <div class="stat"><div class="big">1회</div><div class="lbl">그룹 커밋으로 N개 트랜잭션이 공유하는 fsync 횟수</div></div>
+    </div>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해</span>
+      <p>"SSD니까 fsync는 공짜에 가깝다" — 실제로는 <strong>전원 손실 보호(PLP) 커패시터가 있는 엔터프라이즈 SSD와 없는 컨슈머 SSD의 fsync 지연이 수십 배 차이</strong>가 난다. PLP가 있으면 드라이브가 내부 캐시를 안전하다고 보고 즉시 응답할 수 있지만, 없으면 실제로 낸드까지 밀어 넣어야 한다. 로컬 개발 노트북에서 잘 나오던 TPS가 운영에서 안 나오는 원인이 여기일 수 있다.</p>
+    </div>
+
+    <h4>③ 데이터 파일 쓰기를 미루고 합칠 수 있다</h4>
+    <p>같은 페이지를 100번 수정해도, 메모리에서 100번 고친 뒤 <strong>디스크에는 한 번만</strong> 쓰면 된다. WAL이 없으면 커밋할 때마다 써야 하지만, WAL이 있으면 "언제 써도 안전"하므로 <strong>미뤘다가 몰아서</strong> 쓸 수 있다. 인기 있는 행일수록 이득이 커진다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 체크포인트(checkpoint)</span>
+      <p>"이 시점까지의 모든 변경이 데이터 파일에 반영 완료"라고 못 박는 작업. DB는 주기적으로 메모리에 쌓인 수정 페이지들을 디스크에 몰아 쓰고 체크포인트 기록을 남긴다. 이게 있어야 <strong>복구할 때 WAL을 처음부터 다 읽지 않고 마지막 체크포인트 이후만</strong> 읽으면 되고, 그 이전 WAL 파일은 지워도 된다. 체크포인트가 뜸하면 복구가 느려지고, 잦으면 평소 I/O가 늘어나는 트레이드오프가 있다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 04 ============ -->
+  <section id="recovery">
+    <h2 class="sec"><span class="num">04</span>크래시 복구는 어떻게 일어나는가</h2>
+    <p class="kicker">ARIES — 1992년에 정리된, 지금도 쓰이는 교과서</p>
+
+    <p>WAL 프로토콜 자체는 1970~80년대 데이터베이스 연구에서 이미 존재했다. 그것을 <strong>실용적인 완결된 복구 알고리즘</strong>으로 정리해 사실상의 표준으로 만든 것이 1992년 논문 <strong>ARIES</strong>다.</p>
+
+    <ol class="timeline" style="list-style:none;padding:0">
+      <li><span class="yr">1992</span><strong>ARIES 논문 발표</strong><span class="desc">C. Mohan, Don Haderle, Bruce Lindsay, Hamid Pirahesh, Peter Schwarz (IBM). <em>ACM Transactions on Database Systems</em> Vol. 17, No. 1. "Algorithm for Recovery and Isolation Exploiting Semantics"의 약자. IBM DB2 등에 구현되었다.</span></li>
+      <li><span class="yr">2001</span><strong>PostgreSQL 7.1에 WAL 도입</strong><span class="desc">4월 13일 릴리스. 그 전까지 PostgreSQL은 크래시 시 일관성을 보장할 수 없었고, 쓰기 도중 크래시가 나면 테이블·인덱스 페이지가 손상될 수 있었다. (첫 릴리스에서는 UNDO가 시간 부족으로 미구현이었다.)</span></li>
+      <li><span class="yr">2010</span><strong>SQLite 3.7.0의 WAL 모드</strong><span class="desc">7월 21일 릴리스. 기존 롤백 저널 방식과 <strong>정반대</strong>로 동작하는 선택지가 생겼다.</span></li>
+      <li><span class="yr">2013</span><strong>Jay Kreps, "The Log"</strong><span class="desc">"모든 소프트웨어 엔지니어가 알아야 할 실시간 데이터의 통합 추상"이라는 부제의 글. DB 내부의 구현 디테일이던 로그를 <strong>시스템 간 통합의 1급 개념</strong>으로 끌어올렸다. Apache Kafka의 사상적 배경.</span></li>
+    </ol>
+
+    <p>ARIES의 복구는 크래시 후 재기동할 때 <strong>세 번의 패스</strong>로 진행된다. 마지막 체크포인트 지점에서 시작한다.</p>
+
+    <ol class="ladder">
+      <li><strong>1단계 — 분석(Analysis)</strong>체크포인트 이후의 WAL을 훑어서 "크래시 순간에 진행 중이던 트랜잭션은 누구였고, 어떤 페이지들이 아직 데이터 파일에 반영 안 됐는지" 목록을 만든다. 아직 아무것도 고치지 않는다.</li>
+      <li><strong>2단계 — 재실행(Redo)</strong>로그에 있는 변경을 <strong>순서대로 전부 다시 적용</strong>한다. 커밋된 것뿐 아니라 <strong>커밋 안 된 것까지</strong> 재현한다. 페이지의 LSN과 로그의 LSN을 비교해 이미 반영된 것은 건너뛴다. 이 단계가 끝나면 DB는 <strong>크래시 직전의 상태를 정확히 복원</strong>한 셈이 된다.</li>
+      <li><strong>3단계 — 취소(Undo)</strong>그제서야, 크래시 시점에 커밋되지 않았던 트랜잭션들을 거꾸로 되감아 취소한다. 이 취소 작업 자체도 WAL에 기록된다(그래서 복구 도중에 또 죽어도 안전하다).</li>
+    </ol>
+
+    <div class="box tip">
+      <span class="tag">✅ 왜 커밋 안 된 것까지 다시 실행하는가</span>
+      <p>ARIES의 이 방식을 <strong>"역사 반복(repeating history)"</strong>이라 부르며, 이것이 ARIES를 다른 WAL 기반 기법들과 구별짓는 지점이다. 직관적으로는 "어차피 취소할 건데 왜 다시 해?" 싶다. 이유는 <strong>단순함이 곧 정확성</strong>이기 때문이다. 일단 크래시 직전 상태를 그대로 복원해 놓으면, 그 다음의 취소 작업은 <strong>평상시 롤백과 똑같은 코드</strong>로 처리할 수 있다. "복구 중에만 쓰이는 특별한 경로"를 만들지 않는 것 — 거의 실행되지 않는 코드가 가장 버그가 많은 코드라는 점을 생각하면, 대단히 실용적인 설계다.</p>
+    </div>
+
+    <div class="diagram">복구 3패스
+────────────────────────────────────────────────────────
+ WAL:  ├──체크포인트──┬────────────────────┬──💥크래시
+                     │                    │
+   ① Analysis        └───▶ 훑어보기 ──────┘   무엇이 미완료인가?
+   ② Redo            └───▶ 전부 재적용 ───┘   크래시 직전 상태 복원
+   ③ Undo                  ◀── 되감기 ───     미커밋만 취소
+
+ 결과: 커밋된 것은 100% 살아있고, 미커밋은 100% 사라진다
+       → 원자성(A) + 내구성(D) 동시 달성</div>
+  </section>
+
+  <!-- ============ 05 ============ -->
+  <section id="dial">
+    <h2 class="sec"><span class="num">05</span>내구성은 스위치가 아니라 다이얼</h2>
+    <p class="kicker">모든 DB가 같은 손잡이를 제공한다</p>
+
+    <p>fsync는 비싸다. 그래서 거의 모든 시스템이 <strong>"얼마나 안전할 것인가"를 설정으로 조절</strong>하게 해준다. 이름만 다를 뿐 손잡이의 정체는 똑같다: <strong>커밋 응답과 fsync 사이를 얼마나 벌릴 것인가</strong>.</p>
+
+    <table>
+      <thead><tr><th>시스템</th><th>설정</th><th>의미 · 최악의 손실</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>PostgreSQL</td>
+          <td><code>synchronous_commit = on</code> (기본)</td>
+          <td>커밋 응답 전에 WAL을 fsync. 손실 <strong>0</strong></td>
+        </tr>
+        <tr>
+          <td>PostgreSQL</td>
+          <td><code>synchronous_commit = off</code></td>
+          <td>기다리지 않고 즉시 응답. WAL writer가 나중에 flush → 최대 <strong>3 × <code>wal_writer_delay</code></strong>(기본 200ms → 약 <strong>600ms</strong>) 분량의 커밋이 사라질 수 있다</td>
+        </tr>
+        <tr>
+          <td>MySQL / InnoDB</td>
+          <td><code>innodb_flush_log_at_trx_commit = 1</code> (기본)</td>
+          <td>트랜잭션마다 redo 로그 flush. 완전한 ACID</td>
+        </tr>
+        <tr>
+          <td>MySQL / InnoDB</td>
+          <td><code>= 2</code></td>
+          <td>커밋마다 로그 파일에 쓰되 flush는 1초에 한 번 → OS 크래시·정전 시 <strong>최대 1초</strong> 손실</td>
+        </tr>
+        <tr>
+          <td>MySQL / InnoDB</td>
+          <td><code>= 0</code></td>
+          <td>커밋 시 아무것도 안 함, 1초 주기로만 처리 → <strong>서버 프로세스만 죽어도</strong> 최대 1초 손실</td>
+        </tr>
+        <tr>
+          <td>Redis (AOF)</td>
+          <td><code>appendfsync always</code></td>
+          <td>매 쓰기마다 fsync. 가장 안전하지만 지연이 크게 늘어난다</td>
+        </tr>
+        <tr>
+          <td>Redis (AOF)</td>
+          <td><code>appendfsync everysec</code> (기본)</td>
+          <td>백그라운드 스레드가 1초 주기로 fsync → 최대 <strong>1초</strong> 손실</td>
+        </tr>
+        <tr>
+          <td>Redis (AOF)</td>
+          <td><code>appendfsync no</code></td>
+          <td>OS에 완전히 위임 (리눅스는 통상 30초 주기로 flush)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각 — PostgreSQL에서 절대 헷갈리면 안 되는 두 파라미터</span>
+      <p><code>synchronous_commit = off</code>는 <strong>안전한 절충</strong>이다. 최근 커밋 몇 개가 사라질 수는 있지만, 사라지는 트랜잭션은 <strong>깨끗하게 롤백된 것과 동일한 상태</strong>가 되고 DB는 일관성을 유지한다. 반면 <code>fsync = off</code>는 완전히 다른 이야기다. <strong>DB 자체가 복구 불능으로 깨질 수 있다.</strong> 운영에서 이 두 개를 같은 급으로 취급하면 안 된다.</p>
+      <p>세션 단위로 켜고 끌 수도 있다. 예를 들어 감사 로그 대량 적재 같은 배치 작업만 <code>SET LOCAL synchronous_commit = off</code>로 돌리고, 결제 트랜잭션은 기본값을 유지하는 식이다.</p>
+    </div>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 주의 — 다이얼을 돌리기 전에</span>
+      <p>"1초 손실 허용"이 괜찮은지는 <strong>비즈니스가 정하는 것</strong>이지 성능 그래프가 정하는 게 아니다. 조회수 집계라면 1초쯤 날아가도 된다. 결제·정산·크레딧 차감이라면 안 된다. 게다가 손실은 "1초어치 데이터"가 아니라 <strong>"클라이언트에게 성공이라고 이미 대답해버린 1초어치 요청"</strong>이다. 사용자는 성공 화면을 봤는데 데이터가 없는 상황이 된다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 06 ============ -->
+  <section id="postgres">
+    <h2 class="sec"><span class="num">06</span>pg_wal에서 실제로 벌어지는 일</h2>
+    <p class="kicker">우리 스택에서 만나게 되는 WAL</p>
+
+    <p>PostgreSQL의 WAL은 데이터 디렉터리 아래 <code>pg_wal/</code>에 <strong>세그먼트 파일</strong> 형태로 쌓인다. 세그먼트 하나는 보통 <strong>16MB</strong>다(<code>initdb --wal-segsize</code>로 변경 가능).</p>
+
+<pre><code><span class="c-com">-- 지금 WAL이 어디까지 찼는지 (LSN)</span>
+<span class="c-kw">SELECT</span> pg_current_wal_lsn();
+
+<span class="c-com">-- pg_wal 디렉터리 총 사용량</span>
+<span class="c-kw">SELECT</span> pg_size_pretty(<span class="c-kw">sum</span>(size)) <span class="c-kw">FROM</span> pg_ls_waldir();
+
+<span class="c-com">-- 복제 슬롯이 붙잡고 있는 WAL 양 (디스크 폭탄 감시용)</span>
+<span class="c-kw">SELECT</span> slot_name, active, wal_status,
+       pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)) <span class="c-kw">AS</span> retained
+<span class="c-kw">FROM</span> pg_replication_slots
+<span class="c-kw">ORDER</span> <span class="c-kw">BY</span> pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn) <span class="c-kw">DESC</span>;</code></pre>
+
+    <h3>full_page_writes — 찢어진 페이지에 대한 방어</h3>
+    <p>01절의 찢어진 페이지 문제를 기억하는가. WAL 레코드가 "블록 Y의 오프셋 Z를 바꿔라"라고만 적혀 있으면, <strong>정작 그 블록 자체가 찢어져 있을 때</strong> 복구할 수 없다. 고칠 기준점이 썩었기 때문이다.</p>
+    <p>PostgreSQL은 <code>full_page_writes</code>(기본 <strong>on</strong>)로 이를 막는다. <strong>체크포인트 이후 어떤 페이지를 처음 수정할 때는, 변경분이 아니라 그 페이지 전체 이미지를 WAL에 통째로 기록</strong>한다. 복구 시에는 이 온전한 이미지로 페이지를 통째로 덮어쓴 뒤, 그 위에 이후 변경들을 적용한다. 찢어진 페이지가 있어도 무관하다.</p>
+
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각 — 체크포인트 직후 WAL이 폭증하는 이유</span>
+      <p>체크포인트가 끝나면 모든 페이지가 "이번 체크포인트 이후 첫 수정" 상태가 된다. 그래서 <strong>체크포인트 직후에는 8KB 전체 이미지가 대량으로 WAL에 실려</strong> 순간적으로 WAL 생성량이 치솟는다. 체크포인트를 너무 자주 돌리면 이 전체 페이지 기록이 반복되면서 WAL 양과 I/O가 함께 늘어난다. "체크포인트를 자주 하면 안전하겠지"라는 직관이 오히려 부하를 키우는 지점이다.</p>
+    </div>
+
+    <h3>복제 슬롯 — 실전에서 가장 자주 터지는 WAL 사고</h3>
+    <p>WAL은 복구에만 쓰이는 게 아니라 <strong>복제(replication)</strong>의 원본이기도 하다. 스탠바이 서버나 CDC 도구(Debezium 등)는 WAL을 읽어 변경을 따라간다. 이때 PostgreSQL은 <strong>복제 슬롯</strong>으로 "이 소비자가 아직 여기까지밖에 못 읽었다"를 기억하고, <strong>그 지점 이후의 WAL을 절대 지우지 않는다</strong>.</p>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 함정 — 죽은 복제 슬롯은 시한폭탄</span>
+      <p>소비자가 죽었거나 스탠바이를 그냥 내려버렸는데 슬롯을 지우지 않으면, PostgreSQL은 그 소비자를 <strong>영원히 기다리며 WAL을 무한정 쌓는다</strong>. <code>max_slot_wal_keep_size</code>의 기본값은 <strong><code>-1</code>(무제한)</strong>이라, <strong>비활성 슬롯 하나가 디스크 전체를 채워 DB를 멈춰 세울 수 있다</strong>. 그리고 이건 다른 WAL 보존 설정들을 전부 무시한다.</p>
+      <p>대응: <code>pg_replication_slots</code>의 <code>active = false</code>이면서 보존량이 큰 슬롯을 모니터링·알람 대상으로 두고(WAL 볼륨의 70~75%에서 알람), <code>max_slot_wal_keep_size</code>에 상한을 두거나 <code>idle_replication_slot_timeout</code>(예: 48~72시간)으로 방치된 슬롯을 무효화한다.</p>
+    </div>
+
+    <h3>Django 개발자가 실제로 체감하는 지점</h3>
+    <ul>
+      <li><strong><code>transaction.atomic()</code> 블록의 크기</strong> — 블록이 길수록 미커밋 상태가 오래 유지되고 WAL과 잠금이 함께 쌓인다. 외부 API 호출을 atomic 블록 안에 넣지 않는 이유 중 하나다.</li>
+      <li><strong>대량 <code>bulk_update</code></strong> — 건드리는 페이지가 많을수록 WAL 생성량이 커진다. 대량 배치가 도는 시간대에 복제 지연(LSN 차이)이 벌어지는 것은 정상적인 인과다.</li>
+      <li><strong>읽기 전용 복제본의 지연</strong> — 마스터에 쓰고 곧바로 리플리카에서 읽으면 없을 수 있다. 리플리카는 WAL을 받아 재생하는 중이고, <strong>커밋 시점과 재생 완료 시점 사이에는 필연적으로 시차</strong>가 있기 때문이다. "방금 저장했는데 목록에 안 보여요" 류의 버그가 여기서 나온다.</li>
+    </ul>
+  </section>
+
+  <!-- ============ 07 ============ -->
+  <section id="log-as-truth">
+    <h2 class="sec"><span class="num">07</span>로그가 부산물에서 원본이 되는 순간</h2>
+    <p class="kicker">여기서부터 Kafka와 이벤트 소싱이 시작된다</p>
+
+    <p>지금까지 WAL은 "데이터 파일을 지키기 위한 보조 장치"였다. 그런데 누군가 이런 생각을 한다. <strong>로그만 있으면 데이터 파일을 언제든 다시 만들 수 있다면, 진짜 원본은 로그 아닌가?</strong></p>
+
+    <p>이 관점 전환이 현대 데이터 아키텍처의 상당 부분을 낳았다. 순서대로 따라가 보자.</p>
+
+    <ol class="ladder">
+      <li><strong>복제 — 로그를 남에게 보내기</strong>WAL을 다른 서버에 보내 그대로 재생하면 똑같은 DB가 하나 더 생긴다. 로그가 재실행 가능하다는 성질을 그대로 활용한 것뿐이다.</li>
+      <li><strong>CDC — 로그를 다른 종류의 저장소에 보내기</strong>재생 대상이 꼭 같은 DB일 필요는 없다. WAL을 읽어 Elasticsearch 색인이나 데이터 웨어하우스를 갱신할 수 있다. <strong>CDC(Change Data Capture)</strong> = 변경 이력을 로그에서 뽑아 하류 시스템에 전파하는 것. Debezium이 하는 일이다.</li>
+      <li><strong>Kafka — 로그 자체가 제품이 되기</strong>그렇다면 로그를 DB 안에 가둘 필요도 없다. Kafka는 처음부터 <strong>분산 커밋 로그</strong>로 설계되었다. 토픽의 각 파티션이 하나의 논리적 로그이고, 물리적으로는 세그먼트 파일들의 집합이다. 프로듀서가 메시지를 보내면 브로커는 <strong>마지막 세그먼트 파일에 이어 붙이기만</strong> 한다. 각 메시지의 <strong>오프셋</strong>은 DB의 LSN과 정확히 같은 역할을 한다.</li>
+      <li><strong>이벤트 소싱 — 애플리케이션 상태를 로그로 표현하기</strong>마지막 단계. 주문 테이블에 현재 상태를 저장하는 대신, <code>OrderPlaced</code> → <code>PaymentCaptured</code> → <code>OrderShipped</code> 이벤트를 append-only로 쌓고, <strong>현재 상태는 이벤트들을 처음부터 접어(fold) 계산</strong>한다. Greg Young이 CQRS와 함께 널리 알린 접근이다.</li>
+    </ol>
+
+    <div class="box note">
+      <span class="tag">📎 왜 이벤트 소싱이 "정보를 더 많이 담는가"</span>
+      <p>Greg Young의 논지를 요약하면 이렇다. <strong>상태만 저장하면 "왜 그렇게 됐는가"를 잃는다.</strong> 잔액이 0원인 것은 알아도, 그게 전액 인출 때문인지 세 번의 결제 때문인지 알 수 없다. 의도를 온전히 담은 로그는 정보를 잃지 않으므로, <strong>나중에 생긴 질문에도 과거 데이터로 답할 수 있다</strong>. 이건 WAL이 "무엇을 하려 했는가"를 기록해 복구를 가능하게 한 것과 정확히 같은 원리다.</p>
+    </div>
+
+    <div class="box analogy">
+      <span class="tag">📒 비유 (보조 설명)</span>
+      <p>회계 장부는 숫자를 지우고 고치지 않는다. 잘못 적었으면 <strong>취소 전표를 새로 추가</strong>한다. 그래서 잔액은 언제나 전표를 처음부터 더한 결과이고, 감사(audit)가 가능하다. append-only 로그가 데이터의 원본이 되는 시스템이 정확히 이 모양이다.</p>
+    </div>
+
+    <h3>우리도 매일 쓰는 WAL 사고방식 — 트랜잭셔널 아웃박스</h3>
+    <p>이 사고방식은 DB 내부에만 있는 게 아니다. "DB에 저장하고 그다음 외부 시스템에 알린다"는 흔한 코드는 <strong>이중 쓰기(dual write)</strong> 문제를 안고 있다.</p>
+
+    <p class="code-label">❌ 나쁜 예 — 두 시스템에 각각 쓰기</p>
+<pre><code><span class="c-kw">with</span> transaction.<span class="c-fn">atomic</span>():
+    order = Order.objects.<span class="c-fn">create</span>(...)
+
+<span class="c-com"># 💥 여기서 프로세스가 죽거나 Kafka가 죽으면?</span>
+<span class="c-com">#    주문은 DB에 있는데 알림은 영원히 안 나간다.</span>
+<span class="c-com">#    순서를 바꿔도 대칭적으로 반대 문제가 생긴다.</span>
+kafka_producer.<span class="c-fn">send</span>(<span class="c-str">"orders"</span>, order.to_dict())</code></pre>
+
+    <p class="code-label">✅ 좋은 예 — 의도를 같은 트랜잭션 안에 먼저 기록</p>
+<pre><code><span class="c-kw">with</span> transaction.<span class="c-fn">atomic</span>():
+    order = Order.objects.<span class="c-fn">create</span>(...)
+    <span class="c-com"># 같은 DB 트랜잭션 = 주문과 발행 의도가 함께 커밋되거나 함께 롤백</span>
+    OutboxEvent.objects.<span class="c-fn">create</span>(
+        topic=<span class="c-str">"orders"</span>,
+        payload=order.<span class="c-fn">to_dict</span>(),
+        status=<span class="c-str">"PENDING"</span>,
+    )
+
+<span class="c-com"># 별도 워커가 PENDING을 읽어 발행하고 SENT로 표시.</span>
+<span class="c-com"># 실패하면 재시도한다 → 최소 1회 전달이 보장된다.</span>
+<span class="c-com"># (소비자 쪽은 중복 수신에 대비해 멱등하게 처리해야 한다)</span></code></pre>
+
+    <p><code>OutboxEvent</code> 테이블이 하는 일이 바로 WAL이다. <strong>실제 작업(외부 발행)을 하기 전에 하려는 일을 먼저 원자적으로 기록</strong>하고, 나중에 그 기록을 보고 완수한다. DB의 WAL과 완전히 같은 구조이며, 다만 계층이 애플리케이션으로 올라왔을 뿐이다.</p>
+  </section>
+
+  <!-- ============ 08 ============ -->
+  <section id="zoo">
+    <h2 class="sec"><span class="num">08</span>같은 패턴 도감 — Git·Redis·RocksDB·SQLite</h2>
+    <p class="kicker">이름은 다르지만 골격은 같다</p>
+
+    <h3>RocksDB / LSM 트리 — 가장 교과서적인 형태</h3>
+    <p>RocksDB 같은 LSM 트리 기반 저장소에서 쓰기는 먼저 메모리의 <strong>멤테이블(MemTable)</strong>에 들어가고, 멤테이블이 일정 크기가 되면 디스크에 SSTable 파일로 내려간다. 그런데 멤테이블은 메모리다. 크래시 나면 사라진다. 그래서 <strong>멤테이블에 넣기 직전에 WAL에 먼저 append</strong>한다. WAL이 존재하는 이유는 여기서 정확히 하나다: <strong>플러시되기 전에 죽었을 때 메모리 상태를 재구성하는 것</strong>. 멤테이블이 디스크로 내려가고 나면 해당 WAL은 버려도 된다.</p>
+
+    <h3>Redis AOF — 명령 자체를 로그로</h3>
+    <p>Redis의 AOF(Append Only File)는 <strong>수행한 쓰기 명령을 그대로 파일 끝에 이어 붙인다</strong>. 재기동하면 그 명령들을 처음부터 다시 실행해 메모리 상태를 복원한다. WAL의 REDO를 명령 수준에서 하는 셈이다. 다만 <strong>순서가 반대</strong>라는 점이 중요하다 — Redis는 명령을 실행한 <em>뒤</em> AOF에 기록하므로, 엄밀히는 "선행 기입"이 아니다. <code>appendfsync everysec</code>에서 최대 1초 손실이 생기는 것도 그래서다.</p>
+
+    <h3>SQLite — 방향을 뒤집은 사례</h3>
+    <div class="split">
+      <div class="card cmd">
+        <h4>📄 롤백 저널 (기존 방식)</h4>
+        <p style="font-size:15px;margin:4px 0 0">바뀔 페이지의 <strong>옛 값</strong>을 별도 파일에 복사해두고, 본 파일은 제자리 수정.</p>
+        <ul>
+          <li>롤백 = 저널에서 옛 값을 되돌려 씀</li>
+          <li>읽기와 쓰기가 서로를 막는다</li>
+          <li>약 100MB를 넘는 큰 트랜잭션에서는 이쪽이 더 빠를 수 있다</li>
+        </ul>
+      </div>
+      <div class="card qry">
+        <h4>📝 WAL 모드 (3.7.0, 2010)</h4>
+        <p style="font-size:15px;margin:4px 0 0">본 파일은 그대로 두고, <strong>새 값</strong>을 별도 WAL 파일에 append.</p>
+        <ul>
+          <li>읽는 쪽이 쓰는 쪽을 막지 않고, 그 반대도 아니다</li>
+          <li>디스크 I/O가 순차적이고 fsync 호출이 훨씬 적다</li>
+          <li>대부분의 시나리오에서 유의미하게 빠르다</li>
+        </ul>
+      </div>
+    </div>
+    <p>SQLite 공식 문서의 표현대로, 두 방식은 <strong>정확히 반대 방향</strong>이다. 롤백 저널은 옛 값을 밖으로 빼두고, WAL은 새 값을 밖에 쌓아둔다. "제자리를 덮어쓰지 않는다"는 목표는 같고 수단이 대칭이다.</p>
+
+    <h3>Git — 같은 목표, 다른 수단</h3>
+    <p>Slack 코멘트가 Git의 commit log를 나란히 놓은 것은 정확한 직관이다. 다만 <strong>Git은 WAL 프로토콜을 쓰지 않는다</strong>. 목표는 같지만 수단이 다르므로, 여기는 정확히 구분하는 편이 낫다.</p>
+
+    <table>
+      <thead><tr><th>Git의 요소</th><th>정체</th><th>WAL과의 관계</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>커밋 히스토리</td>
+          <td>불변 객체들의 append-only DAG. 새 커밋은 기존 객체를 <strong>수정하지 않고 추가</strong>한다. <code>--amend</code>조차 새 커밋을 만들고 참조만 옮기는 것이다</td>
+          <td><strong>append-only + 불변</strong>이라는 성질을 공유. 단, "먼저 로그 → 나중에 데이터"의 2단계 구조는 아니다. Git에는 애초에 덮어쓸 "데이터 파일"이 없다</td>
+        </tr>
+        <tr>
+          <td>reflog<br><code>.git/logs/HEAD</code></td>
+          <td>브랜치 끝과 HEAD가 <strong>언제 어디를 가리켰는지</strong>를 시간순으로 append하는 로컬 저널</td>
+          <td>Git에서 <strong>WAL에 가장 가까운 것</strong>. <code>reset --hard</code>로 날린 커밋을 되찾을 수 있는 이유가 이 저널이다</td>
+        </tr>
+        <tr>
+          <td><code>.git/index.lock</code></td>
+          <td><code>O_CREAT|O_EXCL</code>로 잠금 파일을 만들고, 새 내용을 거기에 쓴 뒤, <strong>원자적 rename</strong>으로 제자리에 밀어넣는다</td>
+          <td>WAL이 아니라 <strong>원자적 교체</strong> 계열. 목적은 동일하다 — 독자가 <strong>반쪽 상태를 절대 보지 않게</strong> 하는 것</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해</span>
+      <p>"append-only면 다 WAL이다" — 아니다. WAL의 정의는 append-only가 아니라 <strong>순서 규약</strong>이다: 제자리 수정될 데이터가 따로 있고, 그 수정 <em>전에</em> 로그가 안정 저장소에 도달해야 한다. Git은 <strong>제자리 수정 자체를 하지 않는 방식</strong>(불변 객체 + 원자적 참조 교체)으로 같은 목표에 도달한다. Kafka와 이벤트 소싱도 마찬가지로 "로그가 곧 데이터"인 쪽이지 WAL 프로토콜은 아니다. <strong>공유하는 것은 구현이 아니라 통찰</strong>이다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 09 ============ -->
+  <section id="cheatsheet">
+    <h2 class="sec"><span class="num">09</span>한 장 요약 치트시트</h2>
+
+    <div class="tldr">
+      <span class="tag">WAL이란</span>
+      <p><strong>데이터를 고치기 전에, 무엇을 고칠 것인지를 로그에 먼저 안전하게 적어두는 순서 규약.</strong> 커밋 성공 응답이 보증하는 것은 "데이터 파일에 반영됨"이 아니라 "로그가 디스크에 도달함"이다. 실제 반영은 나중에 백그라운드로 일어나며, 그래도 안전한 이유는 로그만 있으면 죽은 지점부터 다시 진행(REDO)하거나 되돌릴(UNDO) 수 있기 때문이다. 덤으로, 흩어진 랜덤 쓰기가 하나의 순차 쓰기로 바뀌고 여러 커밋이 fsync 한 번을 나눠 쓰게 되므로 <strong>더 안전하면서 동시에 더 빠르다</strong>.</p>
+    </div>
+
+    <div class="tldr">
+      <span class="tag">Git · Kafka · 이벤트 소싱까지 이어지는 이유</span>
+      <p><strong>"변경 이력이 남아 있으면 상태는 언제든 다시 만들 수 있다"</strong>는 통찰 하나가 계층을 옮겨 다니는 것이다. 그 이력을 복구용으로만 쓰면 DB의 WAL이고, 남에게 보내면 복제와 CDC이며, 이력 자체를 제품으로 만들면 Kafka이고, 애플리케이션의 진실로 삼으면 이벤트 소싱이다. Git은 여기에 "애초에 덮어쓰지 않는다"는 또 다른 답을 보탠다. <strong>구현은 다르되 적은 원칙은 같다: 과거를 지우지 마라.</strong></p>
+    </div>
+
+    <table>
+      <thead><tr><th>기억할 것</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>핵심 규약</td><td>로그를 먼저 fsync → 그다음에 데이터 파일 수정. <strong>순서</strong>가 전부다</td></tr>
+        <tr><td>REDO 규칙</td><td>커밋 응답 전에 그 트랜잭션의 로그가 디스크에 있어야 한다 (내구성)</td></tr>
+        <tr><td>UNDO 규칙</td><td>미커밋 페이지를 디스크에 쓰기 전에 그 로그가 디스크에 있어야 한다 (원자성)</td></tr>
+        <tr><td>복구 3패스</td><td>Analysis(파악) → Redo(전부 재적용, 미커밋 포함) → Undo(미커밋만 취소). ARIES, 1992</td></tr>
+        <tr><td>왜 더 빠른가</td><td>랜덤 → 순차 쓰기, 그룹 커밋으로 fsync 공유, 데이터 파일 쓰기 지연·병합</td></tr>
+        <tr><td>fsync</td><td>내구성의 실제 경계선. 엔터프라이즈 SSD(PLP 有) 수십 µs vs 컨슈머 SSD ms급</td></tr>
+        <tr><td>체크포인트</td><td>"여기까지 데이터 파일 반영 완료" 표시. 복구 시작점이자 옛 WAL 삭제 기준</td></tr>
+        <tr><td>내구성 다이얼</td><td>PG <code>synchronous_commit</code> / InnoDB <code>innodb_flush_log_at_trx_commit</code> / Redis <code>appendfsync</code> — 전부 같은 손잡이</td></tr>
+        <tr><td>⚠️ 절대 혼동 금지</td><td><code>synchronous_commit=off</code>는 최근 커밋 손실(DB는 일관됨). <code>fsync=off</code>는 <strong>DB 파손</strong></td></tr>
+        <tr><td>full_page_writes</td><td>체크포인트 후 첫 수정 시 페이지 전체 이미지를 WAL에 기록 → 찢어진 페이지 방어</td></tr>
+        <tr><td>⚠️ 운영 시한폭탄</td><td>비활성 복제 슬롯. <code>max_slot_wal_keep_size</code> 기본 <code>-1</code>(무제한) → 디스크 풀로 DB 정지</td></tr>
+        <tr><td>Kafka의 대응물</td><td>파티션 = 로그, 오프셋 = LSN, append-only 세그먼트 파일</td></tr>
+        <tr><td>애플리케이션 응용</td><td>트랜잭셔널 아웃박스 — 외부 발행 의도를 같은 트랜잭션에 먼저 기록하고 워커가 완수</td></tr>
+        <tr><td>Git의 위치</td><td>WAL 프로토콜은 아님. 불변 객체 + 원자적 rename + reflog(append-only 저널)로 같은 목표 달성</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="wrap">
+  <h3>더 읽어보기 (이 문서의 사실 검증에 사용한 출처)</h3>
+  <ul>
+    <li>Mohan, Haderle, Lindsay, Pirahesh, Schwarz — <a href="https://dl.acm.org/doi/10.1145/128765.128770">ARIES: A Transaction Recovery Method Supporting Fine-Granularity Locking and Partial Rollbacks Using Write-Ahead Logging</a>, ACM TODS 17(1), 1992 (저자·연도·게재지, 복구 3패스와 repeating history)</li>
+    <li>PostgreSQL 공식 문서 — <a href="https://www.postgresql.org/docs/current/wal-intro.html">Write-Ahead Logging (WAL)</a> · <a href="https://www.postgresql.org/docs/current/wal-internals.html">WAL Internals</a> (LSN 정의, 16MB 세그먼트, pg_wal)</li>
+    <li>PostgreSQL 공식 문서 — <a href="https://www.postgresql.org/docs/current/wal-async-commit.html">Asynchronous Commit</a> · <a href="https://www.postgresql.org/docs/current/runtime-config-wal.html">Write Ahead Log 설정</a> (synchronous_commit off의 최대 3 × wal_writer_delay 손실 창, 기본 200ms, fsync와의 차이)</li>
+    <li>PostgreSQL Wiki — <a href="https://wiki.postgresql.org/wiki/Full_page_writes">Full page writes</a> (찢어진 페이지 방어 메커니즘)</li>
+    <li>PostgreSQL 공식 문서 — <a href="https://www.postgresql.org/docs/9.3/release-7-1.html">Release 7.1</a> (2001-04-13 릴리스, WAL 도입 배경, 초기 UNDO 미구현)</li>
+    <li>PostgreSQL 공식 문서 — <a href="https://www.postgresql.org/docs/current/runtime-config-replication.html">Replication 설정</a> · Gunnar Morling — <a href="https://www.morling.dev/blog/mastering-postgres-replication-slots/">Mastering Postgres Replication Slots</a> (max_slot_wal_keep_size 기본 -1, 비활성 슬롯의 WAL 누적)</li>
+    <li>SQLite 공식 문서 — <a href="https://www.sqlite.org/wal.html">Write-Ahead Logging</a> (3.7.0 / 2010-07-21, 롤백 저널과의 방향 차이, 동시성, 100MB 트랜잭션 한계)</li>
+    <li>Redis 공식 문서 — <a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/">Redis persistence</a> (appendfsync always/everysec/no의 손실 범위)</li>
+    <li>MariaDB 공식 문서 — <a href="https://mariadb.com/docs/server/server-usage/storage-engines/innodb/binary-log-group-commit-and-innodb-flushing-performance">Binary Log Group Commit and InnoDB Flushing Performance</a> (innodb_flush_log_at_trx_commit 0/1/2, 그룹 커밋)</li>
+    <li>Kreps, Narkhede, Rao — <a href="https://pages.cs.wisc.edu/~akella/CS744/F17/838-CloudPapers/Kafka.pdf">Kafka: a Distributed Messaging System for Log Processing</a> (파티션 = 논리적 로그, 세그먼트 파일 append)</li>
+    <li>Git 공식 문서 — <a href="https://git-scm.com/docs/api-lockfile">api-lockfile</a> · <a href="https://git-scm.com/docs/git-reflog">git-reflog</a> (O_CREAT|O_EXCL 잠금 후 원자적 rename, reflog의 append 동작과 저장 위치)</li>
+    <li>Small Datum — <a href="http://smalldatum.blogspot.com/2026/01/ssds-power-loss-protection-and-fsync.html">SSDs, power loss protection and fsync latency</a> (PLP 유무에 따른 fsync 지연 차이)</li>
+  </ul>
+</footer>
+
+<!-- TOC 현재 위치 하이라이트 -->
+<script>
+  const links = [...document.querySelectorAll('nav.toc a')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      const a = map.get(e.target.id);
+      if (a && e.isIntersecting) {
+        links.forEach(l => { l.style.color = ''; l.style.fontWeight = ''; });
+        a.style.color = 'var(--accent)';
+        a.style.fontWeight = '700';
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>

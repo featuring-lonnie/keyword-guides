@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<title>스케줄러(CPU) — 주니어 개발자를 위한 안내서</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-soft: #161b22;
+    --bg-card: #1a2029;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --text-faint: #6b7683;
+    --accent: #58a6ff;
+    --accent-2: #7ee787;
+    --cmd: #ff9e64;
+    --qry: #79c0ff;
+    --warn: #f0b429;
+    --danger: #f47067;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+    --maxw: 860px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f6f8fa;
+      --bg-card: #ffffff;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --text-dim: #57606a;
+      --text-faint: #8c959f;
+      --accent: #0969da;
+      --accent-2: #1a7f37;
+      --cmd: #bc4c00;
+      --qry: #0550ae;
+      --warn: #9a6700;
+      --danger: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(1200px 400px at 50% -50%, rgba(88,166,255,0.10), transparent);
+  }
+  .eyebrow {
+    font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 18px;
+    font-weight: 800; letter-spacing: -0.02em;
+  }
+  .lede { font-size: 19px; color: var(--text-dim); max-width: 680px; margin: 0; }
+  .quote-hero {
+    margin: 22px 0 0; padding: 12px 18px; border-left: 3px solid var(--accent);
+    background: var(--bg-soft); border-radius: 0 8px 8px 0; font-size: 16px; color: var(--text-dim);
+  }
+  .quote-hero strong { color: var(--text); }
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .pill {
+    font-size: 13px; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  nav.toc {
+    margin: 34px 0; padding: 22px 24px; background: var(--bg-soft);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  nav.toc h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-faint); margin: 0 0 14px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 34px; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  nav.toc li { margin: 5px 0; break-inside: avoid; }
+  nav.toc a { color: var(--text); text-decoration: none; font-size: 15px; }
+  nav.toc a:hover { color: var(--accent); }
+
+  main { padding: 10px 0 80px; }
+  section { padding: 34px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2.sec {
+    font-size: clamp(24px, 4vw, 32px); font-weight: 800; letter-spacing: -0.02em;
+    margin: 0 0 6px; scroll-margin-top: 20px;
+  }
+  h2.sec .num {
+    display: inline-block; font-family: var(--mono); font-size: 15px; color: var(--accent);
+    background: rgba(88,166,255,0.12); border-radius: 8px; padding: 2px 10px; margin-right: 12px;
+    vertical-align: middle; font-weight: 600;
+  }
+  h3 { font-size: 20px; font-weight: 700; margin: 30px 0 10px; letter-spacing: -0.01em; }
+  h4 { font-size: 16px; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+  p { margin: 12px 0; }
+  strong { color: var(--text); font-weight: 700; }
+  a { color: var(--accent); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 7px 0; }
+
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    padding: 1.5px 6px; border-radius: 6px; color: var(--accent-2);
+  }
+  pre {
+    background: #0b0e13; border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; margin: 16px 0; position: relative;
+    font-size: 14px; line-height: 1.6;
+  }
+  @media (prefers-color-scheme: light) { pre { background: #f6f8fa; } }
+  pre code { background: none; border: none; padding: 0; color: var(--text); font-size: 14px; }
+  .c-kw { color: #ff7b72; } .c-fn { color: #d2a8ff; } .c-str { color: #a5d6ff; }
+  .c-com { color: var(--text-faint); font-style: italic; } .c-num { color: #79c0ff; }
+  @media (prefers-color-scheme: light) {
+    .c-kw { color: #cf222e; } .c-fn { color: #8250df; } .c-str { color: #0a3069; } .c-num { color: #0550ae; }
+  }
+  .code-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-faint); margin: 18px 0 -8px;
+  }
+
+  .box {
+    margin: 20px 0; padding: 16px 20px; border-radius: 12px;
+    border: 1px solid var(--border); border-left-width: 4px; background: var(--bg-card);
+  }
+  .box .tag { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+  .box p:first-of-type { margin-top: 4px; }
+  .box p:last-child { margin-bottom: 0; }
+  .box.tip { border-left-color: var(--accent-2); }
+  .box.tip .tag { color: var(--accent-2); }
+  .box.warn { border-left-color: var(--warn); }
+  .box.warn .tag { color: var(--warn); }
+  .box.danger { border-left-color: var(--danger); }
+  .box.danger .tag { color: var(--danger); }
+  .box.note { border-left-color: var(--accent); }
+  .box.note .tag { color: var(--accent); }
+  .box.analogy { border-left-color: #d2a8ff; }
+  .box.analogy .tag { color: #d2a8ff; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0; }
+  @media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+  .split .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--bg-card); }
+  .split .card.cmd { border-top: 3px solid var(--cmd); }
+  .split .card.qry { border-top: 3px solid var(--qry); }
+  .split .card h4 { margin-top: 0; font-size: 18px; }
+  .split .card.cmd h4 { color: var(--cmd); }
+  .split .card.qry h4 { color: var(--qry); }
+  .split .card ul { padding-left: 18px; margin: 8px 0 0; font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: none; }
+
+  .diagram {
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre;
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; overflow-x: auto; color: var(--text-dim); margin: 18px 0;
+  }
+  .kicker { color: var(--text-dim); font-size: 15px; margin: 2px 0 18px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 22px 0; }
+  @media (max-width: 640px) { .stat-row { grid-template-columns: 1fr; } }
+  .stat {
+    border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: var(--bg-card);
+  }
+  .stat .big { font-size: 26px; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+  footer { padding: 40px 0 60px; color: var(--text-faint); font-size: 14px; }
+  footer h3 { color: var(--text-dim); font-size: 15px; }
+  footer a { color: var(--text-dim); }
+  footer ul { padding-left: 20px; }
+
+  .tldr {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(126,231,135,0.06));
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin: 24px 0;
+  }
+  .tldr .tag { color: var(--accent); font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+  .tldr p { margin: 8px 0 0; font-size: 16px; }
+
+  /* ===== 모바일 대응 (mobile) ===== */
+  html { -webkit-text-size-adjust: 100%; }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px; }
+    header.hero { padding: 48px 0 34px; }
+    h1 { font-size: clamp(25px, 7.2vw, 34px); }
+    .lede { font-size: 17px; }
+    .quote-hero { font-size: 15px; padding: 11px 15px; }
+    .pill { font-size: 12px; padding: 5px 11px; }
+    main { padding: 6px 0 56px; }
+    section { padding: 26px 0; }
+    h2.sec { font-size: clamp(21px, 5.6vw, 26px); }
+    h2.sec .num { font-size: 13px; padding: 2px 8px; margin-right: 9px; }
+    h3 { font-size: 18px; }
+
+    /* 긴 식별자(innodb_flush_log_at_trx_commit 등)가 표·문단을 밀어내지 않도록 */
+    /* 긴 토큰은 code 안에만 있으므로 줄바꿈 허용은 code로 한정한다.
+       셀 전체에 걸면 'PostgreSQL'이 글자 단위로 쪼개진다. */
+    code { overflow-wrap: anywhere; }
+    th, td { padding: 9px 10px; font-size: 14px; }
+    th { font-size: 12px; }
+    td code, th code { font-size: 0.82em; }
+
+    pre { padding: 14px 15px; }
+    pre, pre code { font-size: 13px; }
+    .diagram { font-size: 11px; padding: 15px; line-height: 1.45; }
+    .box { padding: 14px 16px; }
+    .tldr { padding: 17px 18px; }
+    .tldr p { font-size: 15px; }
+    .stat .big { font-size: 23px; }
+    .ladder li { padding: 13px 15px 13px 52px; }
+    .ladder li::before { left: 13px; top: 13px; width: 27px; height: 27px; font-size: 14px; }
+    nav.toc { padding: 18px 18px; margin: 26px 0; }
+    footer { padding: 30px 0 48px; }
+
+    /* index.html 카드 */
+    a.card { padding: 17px 18px; }
+    a.card h3 { font-size: 19px; }
+    a.card .date { margin-left: 0; width: 100%; order: 3; }
+    a.card .desc, a.card .quote { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
+    <h1>스케줄러 (CPU)</h1>
+    <p class="lede">코어 하나는 한 번에 딱 하나의 일만 합니다. 그런데 어떻게 수백 개의 요청이 "동시에" 처리될까요? 그 마법의 정체와, 그 마법이 왜 공짜가 아닌지를 예제로 풀었습니다.</p>
+    <p class="quote-hero">💬 <strong>"동시성, 비동기 실행은 공짜가 아닙니다."</strong></p>
+    <div class="meta-row">
+      <span class="pill">☕ 읽는 데 ~20분</span>
+      <span class="pill">🔢 실측 수치 포함</span>
+      <span class="pill">🐍 Python·Node 예제</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#intro">코어는 한 번에 하나</a></li>
+      <li><a href="#basics">CPU와 스케줄러란</a></li>
+      <li><a href="#proc-thread">프로세스 vs 스레드</a></li>
+      <li><a href="#ctx">컨텍스트 스위칭 — 비용의 정체</a></li>
+      <li><a href="#sched">다음 차례는 누구? (스케줄링)</a></li>
+      <li><a href="#conc-par">동시성 ≠ 병렬성</a></li>
+      <li><a href="#async">동기/블로킹 vs 비동기</a></li>
+      <li><a href="#limits">스레드를 무한정 늘리면?</a></li>
+      <li><a href="#practice">그래서 실무에선</a></li>
+      <li><a href="#determinism">숨은 비용 하나 더: 순서</a></li>
+      <li><a href="#cheatsheet">한 장 요약 치트시트</a></li>
+    </ol>
+  </nav>
+</div>
+
+<main class="wrap">
+
+  <section id="intro">
+    <h2 class="sec"><span class="num">00</span>코어는 한 번에 하나</h2>
+    <p>CPU 코어 하나는 <strong>한 순간에 단 하나의 명령</strong>만 실행합니다. 이게 출발점입니다. 그런데 여러분의 노트북은 브라우저·음악·에디터를 "동시에" 돌리고, 서버 한 대는 수백 명의 요청을 "동시에" 받습니다. 코어는 하나인데 어떻게?</p>
+    <p>답은 <strong>아주 빠르게 번갈아 가며</strong> 하는 것입니다. 브라우저 조금, 음악 조금, 에디터 조금... 사람 눈엔 동시처럼 보일 만큼 빠르게 전환합니다. 이 "누구를 다음에, 얼마나 실행할지" 결정하는 운영체제의 두뇌가 <strong>스케줄러(scheduler)</strong>입니다.</p>
+    <div class="box note">
+      <span class="tag">이 문서가 답하는 것</span>
+      <p>① 스케줄러가 어떻게 하나의 코어로 여러 일을 굴리는가 ② 그 "번갈아 하기"에 드는 <strong>숨은 비용</strong>은 무엇인가 ③ 그래서 왜 "동시성·비동기는 공짜가 아니다"인가. 이 셋을 이해하면 worker 수를 왜 그렇게 잡는지, async 코드에서 무엇을 하면 안 되는지가 보입니다.</p>
+    </div>
+  </section>
+
+  <section id="basics">
+    <h2 class="sec"><span class="num">01</span>CPU와 스케줄러란</h2>
+    <p>운영체제(OS)에는 실행되길 기다리는 작업이 잔뜩 있습니다. OS는 이들에게 코어를 <strong>아주 짧은 시간씩 돌아가며</strong> 빌려줍니다. 이 짧은 시간 조각을 <strong>타임 슬라이스(time slice)</strong> 또는 퀀텀이라고 부릅니다. 고전적으로는 수십 ms(예: 50ms) 수준입니다.</p>
+    <div class="diagram">코어 하나의 1초를 잘게 쪼개서 나눠 씀 (시분할, time-sharing)
+
+시간 →
+│▓▓▓ A ▓▓▓│░░ B ░░│▓ C ▓│▓▓▓ A ▓▓▓│░░ B ░░│ ...
+└─ 5ms ──┴─4ms─┴─3ms┴─ 5ms ──┴─4ms─┘
+
+사람 눈엔 A·B·C가 "동시에" 도는 것처럼 보인다.
+실제로는 한 순간엔 언제나 하나만 돈다.</div>
+    <p>스케줄러가 하는 일은 두 가지 질문에 답하는 것입니다. <strong>"다음에 누구를 실행할까?"</strong>(순서)와 <strong>"얼마나 오래 실행하게 둘까?"</strong>(시간). 이 결정을 초당 수천 번씩 내립니다.</p>
+    <div class="box analogy">
+      <span class="tag">🎧 비유</span>
+      <p>스케줄러는 <strong>클럽 DJ</strong>입니다. 손님(작업)은 많고 무대(코어)는 하나. DJ는 한 곡을 짧게 틀고 다음 곡으로, 또 다음 곡으로 빠르게 넘깁니다. 잘 넘기면 모두가 자기 노래를 듣는 것처럼 느끼지만, 곡을 바꾸는 순간순간마다 아주 짧은 <em>정지</em>가 있습니다. 그 정지가 이 문서의 핵심 주제입니다.</p>
+    </div>
+  </section>
+
+  <section id="proc-thread">
+    <h2 class="sec"><span class="num">02</span>프로세스 vs 스레드</h2>
+    <p>스케줄러가 굴리는 "작업"의 단위를 알아야 합니다. 딱 두 가지만 기억하세요.</p>
+    <div class="split">
+      <div class="card cmd">
+        <h4>📦 프로세스 (Process)</h4>
+        <p style="font-size:15px;margin:4px 0 0">실행 중인 <strong>프로그램 한 벌</strong>. 자기만의 독립된 메모리 공간을 가집니다.</p>
+        <ul>
+          <li>서로 메모리를 공유하지 않음 → 격리·안전</li>
+          <li>예: 크롬 탭 하나, gunicorn worker 하나</li>
+          <li>전환 비용이 <strong>비쌈</strong>(메모리 주소공간까지 교체)</li>
+        </ul>
+      </div>
+      <div class="card qry">
+        <h4>🧵 스레드 (Thread)</h4>
+        <p style="font-size:15px;margin:4px 0 0">프로세스 <strong>안</strong>의 실행 흐름. 같은 프로세스의 메모리를 공유합니다.</p>
+        <ul>
+          <li>메모리 공유 → 통신 빠름, 대신 경합·버그 위험</li>
+          <li>한 프로세스 안에 여러 스레드 가능</li>
+          <li>전환 비용이 <strong>상대적으로 쌈</strong>(주소공간 그대로)</li>
+        </ul>
+      </div>
+    </div>
+    <p>스케줄러는 보통 <strong>스레드 단위</strong>로 코어를 나눠줍니다(리눅스는 스레드도 프로세스도 같은 "태스크"로 다룹니다). 핵심 차이: <strong>프로세스끼리는 남남이라 전환이 비싸고, 같은 프로세스의 스레드끼리는 전환이 덜 비쌉니다.</strong> 왜 비싼지는 바로 다음 장에서.</p>
+  </section>
+
+  <section id="ctx">
+    <h2 class="sec"><span class="num">03</span>컨텍스트 스위칭 — 비용의 정체</h2>
+    <p class="kicker">"공짜가 아니다"의 실체가 바로 여기 있습니다.</p>
+    <p>코어가 작업 A를 멈추고 작업 B로 넘어가려면, A가 어디까지 했는지를 <strong>전부 저장</strong>하고 B가 저장해둔 상태를 <strong>전부 복원</strong>해야 합니다. 레지스터 값, 프로그램 카운터(다음에 실행할 위치) 등 이 "실행 상태 한 벌"을 <strong>컨텍스트(context)</strong>라 하고, 저장↔복원 과정을 <strong>컨텍스트 스위칭(context switching)</strong>이라 합니다.</p>
+    <div class="diagram">작업 A 실행 중  ──▶  [A의 상태 저장]  ──▶  [B의 상태 복원]  ──▶  작업 B 실행
+                        └───────── 이 구간엔 아무 일도 안 함 ─────────┘
+                                   = 순수한 오버헤드(낭비)</div>
+    <p>이 전환 구간 동안 CPU는 <strong>실제 일(여러분의 코드)을 하나도 안 합니다.</strong> 그냥 짐을 쌌다 풀 뿐입니다. 얼마나 걸릴까요? 실측치를 보면:</p>
+    <div class="stat-row">
+      <div class="stat"><div class="big">~1–2µs</div><div class="lbl">같은 프로세스 내 스레드 전환 (레지스터만 교체)</div></div>
+      <div class="stat"><div class="big">+10–50µs</div><div class="lbl">프로세스 전환 시 추가 (주소공간 교체 = TLB 플러시)</div></div>
+      <div class="stat"><div class="big">수백 µs</div><div class="lbl">캐시가 식으면(cache pollution) 실질 비용은 여기까지</div></div>
+    </div>
+    <p>마지막 항목이 진짜 무섭습니다. B로 넘어가면 방금 A가 데워놓은 <strong>CPU 캐시가 쓸모없어집니다(cache pollution)</strong>. B는 차가운 캐시에서 다시 시작해야 하고, 메모리를 많이 쓰는 작업이면 이 "캐시 다시 데우기" 비용이 수백 µs까지 갑니다. 전환 한 번의 직접 비용(1µs)보다 <em>간접 비용</em>이 훨씬 큰 겁니다.</p>
+    <div class="box warn">
+      <span class="tag">📎 용어: TLB 플러시</span>
+      <p>TLB는 "가상주소 → 실제 메모리주소" 변환을 캐싱해두는 작은 표입니다. 프로세스가 바뀌면 이 표가 무효가 되어 비웁니다(플러시). 그래서 프로세스 전환이 스레드 전환보다 훨씬 비쌉니다. 지금은 <strong>"프로세스 전환 = 추가 세금"</strong> 정도로만 기억하면 됩니다.</p>
+    </div>
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰</span>
+      <p>1µs가 별거냐 싶죠. 하지만 스케줄러가 <strong>초당 수천~수만 번</strong> 전환하고, 여기에 캐시 비용까지 곱해지면 CPU 시간의 상당 부분이 "일"이 아니라 "짐 싸기"에 쓰입니다. 전환이 너무 잦으면 이걸 <strong>스래싱(thrashing)</strong>이라 부르고, 일보다 전환이 더 바빠지는 상태입니다.</p>
+    </div>
+  </section>
+
+  <section id="sched">
+    <h2 class="sec"><span class="num">04</span>다음 차례는 누구? (스케줄링)</h2>
+    <p>대기 중인 작업이 여럿일 때 누구를 먼저 줄까요? 대표적인 방식 몇 가지만 감을 잡아둡시다.</p>
+    <table>
+      <thead><tr><th>방식</th><th>규칙</th><th>문제</th></tr></thead>
+      <tbody>
+        <tr><td>FCFS (선착순)</td><td>먼저 온 순서대로</td><td>앞의 무거운 작업이 뒤를 다 막음(호위 효과)</td></tr>
+        <tr><td>라운드 로빈</td><td>모두에게 똑같은 시간 조각을 돌아가며</td><td>공평하지만 우선순위 구분이 없음</td></tr>
+        <tr><td>우선순위</td><td>급한 작업 먼저</td><td>낮은 우선순위가 영영 못 도는 기아(starvation)</td></tr>
+        <tr><td>리눅스 CFS</td><td>"가장 덜 실행된" 작업에게 다음 차례를 (완전 공정)</td><td>현대 리눅스의 기본. 균형이 좋음</td></tr>
+      </tbody>
+    </table>
+    <p>리눅스의 <strong>CFS(Completely Fair Scheduler)</strong>는 감만 잡으면 됩니다. "목표 지연 시간"(기본 대략 20ms) 안에 대기 중인 모든 작업이 최소 한 번은 돌게 하되, N개가 경쟁하면 각자 <strong>1/N씩</strong> 나눠 갖습니다. 작업이 많아질수록 각자의 몫이 얇아지죠.</p>
+    <h4>선점형(preemptive)이 핵심</h4>
+    <p>현대 OS는 <strong>선점형</strong>입니다. 작업이 자발적으로 CPU를 내놓길 기다리지 않고, <strong>타임 슬라이스가 끝나면 OS가 강제로 빼앗아</strong> 다음 작업에게 넘깁니다. 덕분에 한 작업이 무한 루프를 돌아도 시스템 전체가 멈추지 않습니다. (선점 = "차례를 강제로 뺏는다"는 뜻.)</p>
+    <div class="box note">
+      <span class="tag">💡 왜 알아야 하나</span>
+      <p>작업 수 N이 늘면 ① 각자 CPU 몫이 1/N로 줄고 ② 그만큼 전환(§03)이 잦아집니다. "worker/스레드를 무작정 늘리면 오히려 느려진다"는 말의 뿌리가 바로 이 두 가지입니다.</p>
+    </div>
+  </section>
+
+  <section id="conc-par">
+    <h2 class="sec"><span class="num">05</span>동시성 ≠ 병렬성</h2>
+    <p class="kicker">주니어가 가장 많이 헷갈리는 지점. 여기만 확실히 하고 갑시다.</p>
+    <div class="split">
+      <div class="card qry">
+        <h4>🔀 동시성 (Concurrency)</h4>
+        <p style="font-size:15px;margin:4px 0 0">여러 일을 <strong>번갈아 가며</strong> 다뤄 "동시에 진행되는 것처럼" 보이게 하는 것.</p>
+        <ul>
+          <li>코어 <strong>1개</strong>로도 가능 (빠른 전환)</li>
+          <li>구조/설계의 문제 — "여러 일을 다루는 법"</li>
+          <li>예: 요리사 1명이 3개 냄비를 번갈아 저음</li>
+        </ul>
+      </div>
+      <div class="card cmd">
+        <h4>⚡ 병렬성 (Parallelism)</h4>
+        <p style="font-size:15px;margin:4px 0 0">여러 일을 <strong>진짜 물리적으로 같은 순간에</strong> 실행하는 것.</p>
+        <ul>
+          <li>코어가 <strong>여러 개</strong>여야 가능</li>
+          <li>실행/하드웨어의 문제 — "정말 동시에 하는 것"</li>
+          <li>예: 요리사 3명이 각자 냄비 하나씩</li>
+        </ul>
+      </div>
+    </div>
+    <p>정리하면: <strong>동시성은 "번갈아", 병렬성은 "진짜 동시에".</strong> 코어가 1개면 아무리 스레드를 많이 만들어도 병렬이 아니라 동시성(전환)일 뿐입니다. 스케줄러는 동시성을 만드는 장치이고, 진짜 병렬은 코어 개수만큼만 가능합니다.</p>
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각</span>
+      <p>코어가 8개면 진짜 병렬은 최대 8개. 스레드를 800개 만들어도 동시에 도는 건 8개뿐이고, 나머지 792개는 순서를 기다리며 <strong>전환 비용만 늘립니다.</strong> "스레드 = 성능"이 아닌 이유입니다.</p>
+    </div>
+  </section>
+
+  <section id="async">
+    <h2 class="sec"><span class="num">06</span>동기/블로킹 vs 비동기</h2>
+    <p>여기서 "비동기가 왜 나왔나"가 풀립니다. 작업은 크게 두 종류입니다.</p>
+    <div class="split">
+      <div class="card cmd">
+        <h4>🧮 CPU-bound (계산 위주)</h4>
+        <p style="font-size:15px;margin:4px 0 0">CPU를 계속 굴리는 일. 이미지 처리, 정렬, 암호화, 큰 반복문.</p>
+        <ul><li>병목 = CPU 계산력</li><li>코어 수만큼만 빨라짐</li></ul>
+      </div>
+      <div class="card qry">
+        <h4>⏳ I/O-bound (대기 위주)</h4>
+        <p style="font-size:15px;margin:4px 0 0">뭔가를 <strong>기다리는</strong> 일. DB 응답, API 호출, 파일 읽기, 네트워크.</p>
+        <ul><li>병목 = 남을 기다리는 시간</li><li>기다리는 동안 CPU는 논다</li></ul>
+      </div>
+    </div>
+    <p>웹 서버 일의 대부분은 <strong>I/O-bound</strong>입니다. DB에 쿼리를 던지고 응답을 기다리는 그 수십 ms 동안, CPU는 손 놓고 놉니다. 이게 <strong>블로킹(blocking)</strong>입니다 — "응답 올 때까지 이 자리에서 멈춰 기다림".</p>
+
+    <p class="code-label">❌ 블로킹 — 기다리는 동안 이 스레드는 아무것도 못 함</p>
+<pre><code><span class="c-com"># API 3개를 순서대로 호출. 각 100ms 걸린다면 총 300ms.</span>
+a = <span class="c-fn">requests</span>.get(url_a)   <span class="c-com"># 100ms 동안 멈춰서 기다림 (CPU 놀고 있음)</span>
+b = <span class="c-fn">requests</span>.get(url_b)   <span class="c-com"># 또 100ms 멈춤</span>
+c = <span class="c-fn">requests</span>.get(url_c)   <span class="c-com"># 또 100ms 멈춤 → 합계 300ms</span></code></pre>
+
+    <p><strong>비동기(async)/논블로킹</strong>의 아이디어: "기다리는 동안 멈춰 있지 말고, 그 시간에 다른 일을 하자." 요청을 던져놓고 응답을 기다리는 대신 <strong>다음 일로 넘어갔다가</strong>, 응답이 준비되면 그때 돌아와 처리합니다.</p>
+
+    <p class="code-label">✅ 논블로킹 — 셋을 동시에 띄우고 함께 기다림</p>
+<pre><code><span class="c-com"># 3개를 한꺼번에 던져놓고 같이 기다림 → 총 ~100ms (제일 느린 것 기준)</span>
+a, b, c = <span class="c-kw">await</span> asyncio.<span class="c-fn">gather</span>(
+    <span class="c-fn">fetch</span>(url_a), <span class="c-fn">fetch</span>(url_b), <span class="c-fn">fetch</span>(url_c),
+)
+<span class="c-com"># 기다리는(await) 동안 CPU는 다른 요청을 처리한다. 놀지 않는다.</span></code></pre>
+
+    <div class="box tip">
+      <span class="tag">✅ 한 줄 정리</span>
+      <p>비동기가 빠른 건 계산을 빨리 해서가 아니라, <strong>"기다리는 시간"을 낭비하지 않아서</strong>입니다. 그래서 async는 I/O-bound에 강하고, CPU-bound에는 별 도움이 안 됩니다(기다리는 시간이 없으니까).</p>
+    </div>
+  </section>
+
+  <section id="limits">
+    <h2 class="sec"><span class="num">07</span>스레드를 무한정 늘리면?</h2>
+    <p>"동시에 많이 처리하고 싶으니 스레드를 1만 개 만들자" — 여기서 <strong>공짜가 아니다</strong>가 청구서로 돌아옵니다.</p>
+    <h4>비용 1: 메모리</h4>
+    <p>스레드마다 자기 <strong>스택</strong> 메모리가 필요합니다. 리눅스 기본값은 스레드당 <strong>8MiB</strong>(가상 메모리). 스레드 1만 개면 가상 메모리로 <strong>80GiB</strong>가 예약됩니다(실제 물리 사용은 훨씬 적지만, 공짜는 아닙니다).</p>
+    <h4>비용 2: 전환 폭증</h4>
+    <p>코어는 8개인데 스레드가 1만 개면, 스케줄러는 이 1만 개를 8개 코어에 번갈아 태우느라 <strong>컨텍스트 스위칭(§03)을 폭발적으로</strong> 일으킵니다. 어느 순간부터는 일보다 전환이 더 바빠지고(스래싱), 스레드를 늘릴수록 처리량이 <strong>오히려 줄어듭니다.</strong></p>
+    <div class="diagram">처리량
+  │        ┌──── 최적점 (코어 수 근처)
+  │      ╱   ╲
+  │    ╱       ╲╲___ 전환 비용이 이득을 잡아먹음
+  │  ╱             ╲╲╲___
+  │╱                     ╲╲╲___
+  └────────────────────────────▶ 스레드 수
+  더 많은 스레드 = 항상 더 빠름  ❌  (거짓)</div>
+    <p>그래서 현실의 해법은 "스레드를 무한정" 대신 <strong>정해진 개수만 재사용</strong>하는 것입니다.</p>
+    <ul>
+      <li><strong>스레드 풀(thread pool)</strong> — 스레드를 N개만 미리 만들어 두고 작업을 큐에 넣어 돌려 씀. 매번 만들고 없애는 비용도 아낌.</li>
+      <li><strong>이벤트 루프(event loop)</strong> — Node.js·Python asyncio의 방식. <em>스레드 1개</em>가 수천 개의 I/O 대기를 관리. 기다리는 동안 다른 걸 처리(§06)하므로 스레드가 거의 필요 없음.</li>
+      <li><strong>worker 프로세스</strong> — gunicorn/uvicorn이 <em>코어 수에 맞춰</em>(보통 <code>2×코어+1</code>) 프로세스를 띄우는 것도 같은 논리.</li>
+    </ul>
+    <div class="box warn">
+      <span class="tag">🐍 Python 특이사항: GIL</span>
+      <p>CPython에는 <strong>GIL(Global Interpreter Lock)</strong>이 있어, 한 프로세스 안에서는 <em>한 순간에 한 스레드만</em> 파이썬 바이트코드를 실행합니다. 그래서 Python 스레드는 <strong>CPU-bound엔 병렬 효과가 거의 없고</strong>(GIL이 막음), I/O-bound엔 유효합니다(기다리는 동안 GIL을 놓음). Python에서 CPU 작업을 병렬화하려면 스레드가 아니라 <strong>멀티프로세스</strong>(또는 Celery 같은 워커)를 씁니다. 이게 Django에서 무거운 계산을 Celery로 빼는 이유 중 하나입니다.</p>
+    </div>
+  </section>
+
+  <section id="practice">
+    <h2 class="sec"><span class="num">08</span>그래서 실무에선</h2>
+    <p>여기까지 오면 아래 규칙들이 "왜"인지 이해됩니다.</p>
+    <table>
+      <thead><tr><th>상황</th><th>이렇게, 왜냐하면</th></tr></thead>
+      <tbody>
+        <tr><td>작업이 <strong>I/O-bound</strong> (대부분의 웹)</td><td>async / 이벤트 루프. 기다리는 시간을 재활용</td></tr>
+        <tr><td>작업이 <strong>CPU-bound</strong> (이미지·ML)</td><td>멀티프로세스 / 별도 워커(Celery). 코어 수만큼만</td></tr>
+        <tr><td>worker/스레드 수 정하기</td><td>무작정 크게 X. 코어 수 근처(예: <code>2×코어+1</code>)에서 부하 테스트로 조정</td></tr>
+        <tr><td>async 함수 안에서</td><td><strong>블로킹 호출 금지</strong>(아래 danger 박스)</td></tr>
+        <tr><td>느려졌는데 CPU는 안 바쁨</td><td>I/O 대기·락 경합 의심. 코어 추가는 헛수고</td></tr>
+      </tbody>
+    </table>
+    <div class="box danger">
+      <span class="tag">⚠️ 가장 흔한 사고: async 안의 블로킹 호출</span>
+      <p>이벤트 루프는 <strong>스레드 1개</strong>로 굴러갑니다. 그 한 스레드 안에서 블로킹 호출(예: 동기 <code>requests.get()</code>, <code>time.sleep()</code>, 무거운 CPU 계산)을 하면, <strong>그 순간 전체 이벤트 루프가 멈춰</strong> 다른 모든 요청이 함께 얼어붙습니다. async 코드에선 반드시 async 버전(<code>await asyncio.sleep()</code>, async HTTP 클라이언트)을 쓰거나, 무거운 작업은 별도 스레드/프로세스로 넘겨야 합니다.</p>
+    </div>
+    <div class="box tip">
+      <span class="tag">✅ 판단 한 줄</span>
+      <p>"이 작업은 <strong>기다리는 일</strong>인가, <strong>계산하는 일</strong>인가?" 먼저 물어보세요. 기다리는 일이면 async, 계산하는 일이면 멀티프로세스. 이 한 질문이 동시성 설계의 90%입니다.</p>
+    </div>
+  </section>
+
+  <section id="determinism">
+    <h2 class="sec"><span class="num">09</span>숨은 비용 하나 더: 순서가 사라진다</h2>
+    <p>스케줄러가 만드는 비용이 하나 더 있습니다. 성능이 아니라 <strong>예측 가능성</strong>의 비용입니다.</p>
+    <p>선점형 스케줄러는 각 스레드를 <strong>언제 멈추고 언제 재개할지 그때그때 다르게</strong> 정합니다. 코어의 미세한 속도 차, 다른 작업의 부하에 따라 <strong>스레드가 끝나는 순서가 실행마다 달라집니다.</strong> 그래서:</p>
+    <div class="diagram">스레드 A, B, C가 각자 결과를 리스트에 append 한다면...
+
+실행 1회차:  [A, C, B]   ← 끝난 순서대로
+실행 2회차:  [B, A, C]   ← 이번엔 다르게 끝남
+실행 3회차:  [A, B, C]
+
+→ 같은 입력인데 결과 순서가 매번 다름 = 비결정적</div>
+    <p>같은 입력인데 실행마다 결과가 달라지는 것을 <strong>비결정적(non-deterministic)</strong>이라고 합니다. 테스트가 어쩔 땐 통과하고 어쩔 땐 실패하는 플래키(flaky) 테스트, "내 컴퓨터에선 됐는데" 버그의 단골 원인이죠.</p>
+    <p>그래서 병렬 작업의 결과를 모을 때는, 끝나는 순서에 의존하지 말고 <strong>다 모은 뒤 명시적인 기준으로 정렬</strong>해야 합니다(점수 같은 기준이 동점이면 id 같은 고유 키로 순서를 확정). 동시성이 성능을 주는 대신 <strong>"순서의 보장"을 가져갑니다.</strong> 이것도 공짜가 아닌 비용의 하나입니다.</p>
+  </section>
+
+  <section id="cheatsheet">
+    <h2 class="sec"><span class="num">10</span>한 장 요약 치트시트</h2>
+    <div class="tldr">
+      <span class="tag">스케줄러(CPU)</span>
+      <p><strong>코어 하나는 한 번에 하나.</strong> 스케줄러가 작업들에게 코어를 짧은 시간씩(타임 슬라이스) 번갈아 빌려줘 "동시에 도는 것처럼" 보이게 한다(동시성). 진짜 동시 실행(병렬성)은 코어 개수만큼만 가능하다.</p>
+    </div>
+    <div class="tldr">
+      <span class="tag">공짜가 아니다</span>
+      <p>작업을 바꿀 때마다 <strong>컨텍스트 스위칭</strong>(상태 저장·복원 ~1µs + 캐시 식음 수백µs)이 든다. 스레드를 무작정 늘리면 전환 비용이 이득을 잡아먹어 <strong>오히려 느려진다</strong>. 그래서 스레드 풀·이벤트 루프·코어 수 기반 worker를 쓴다.</p>
+    </div>
+    <table>
+      <thead><tr><th>기억할 것</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>동시성 vs 병렬성</td><td>번갈아(코어 1개도 OK) vs 진짜 동시에(코어 여러 개 필요)</td></tr>
+        <tr><td>I/O-bound</td><td>기다리는 일 → <strong>async</strong>로 대기 시간 재활용</td></tr>
+        <tr><td>CPU-bound</td><td>계산하는 일 → <strong>멀티프로세스</strong>, 코어 수만큼만</td></tr>
+        <tr><td>Python GIL</td><td>한 프로세스=한 스레드만 실행 → CPU 병렬엔 프로세스</td></tr>
+        <tr><td>async 안에서</td><td>블로킹 호출 금지(이벤트 루프 전체가 멈춤)</td></tr>
+        <tr><td>스레드 많을수록 빠름?</td><td>❌ 코어 수 근처가 최적, 그 뒤론 전환 비용이 갉아먹음</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <h3>더 읽어보기 (출처)</h3>
+  <ul>
+    <li>Eli Bendersky — <a href="https://eli.thegreenplace.net/2018/measuring-context-switching-and-memory-overheads-for-linux-threads/">Measuring context switching and memory overheads for Linux threads</a> (컨텍스트 스위치·스레드 스택 실측)</li>
+    <li>Tsuna's blog — <a href="https://blog.tsunanet.net/2010/11/how-long-does-it-take-to-make-context.html">How long does it take to make a context switch?</a></li>
+    <li>Opensource.com — <a href="https://opensource.com/article/19/2/fair-scheduling-linux">CFS: Completely fair process scheduling in Linux</a> (리눅스 기본 스케줄러)</li>
+    <li>Python 공식 문서 — <a href="https://docs.python.org/3/library/asyncio.html">asyncio</a> · <a href="https://docs.python.org/3/glossary.html#term-global-interpreter-lock">GIL 용어집</a></li>
+  </ul>
+</footer>
+
+<script>
+  const links = [...document.querySelectorAll('nav.toc a')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      const a = map.get(e.target.id);
+      if (a && e.isIntersecting) {
+        links.forEach(l => { l.style.color = ''; l.style.fontWeight = ''; });
+        a.style.color = 'var(--accent)';
+        a.style.fontWeight = '700';
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>

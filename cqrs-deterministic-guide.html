@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<title>CQRS & 결정론적 알고리즘 — 주니어 개발자를 위한 안내서</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-soft: #161b22;
+    --bg-card: #1a2029;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --text-faint: #6b7683;
+    --accent: #58a6ff;
+    --accent-2: #7ee787;
+    --cmd: #ff9e64;
+    --qry: #79c0ff;
+    --warn: #f0b429;
+    --danger: #f47067;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+    --maxw: 860px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f6f8fa;
+      --bg-card: #ffffff;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --text-dim: #57606a;
+      --text-faint: #8c959f;
+      --accent: #0969da;
+      --accent-2: #1a7f37;
+      --cmd: #bc4c00;
+      --qry: #0550ae;
+      --warn: #9a6700;
+      --danger: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+  /* Hero */
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(1200px 400px at 50% -50%, rgba(88,166,255,0.10), transparent);
+  }
+  .eyebrow {
+    font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 18px;
+    font-weight: 800; letter-spacing: -0.02em;
+  }
+  .lede { font-size: 19px; color: var(--text-dim); max-width: 680px; margin: 0; }
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .pill {
+    font-size: 13px; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  /* TOC */
+  nav.toc {
+    margin: 34px 0; padding: 22px 24px; background: var(--bg-soft);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  nav.toc h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-faint); margin: 0 0 14px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 34px; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  nav.toc li { margin: 5px 0; break-inside: avoid; }
+  nav.toc a { color: var(--text); text-decoration: none; font-size: 15px; }
+  nav.toc a:hover { color: var(--accent); }
+
+  main { padding: 10px 0 80px; }
+  section { padding: 34px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2.sec {
+    font-size: clamp(24px, 4vw, 32px); font-weight: 800; letter-spacing: -0.02em;
+    margin: 0 0 6px; scroll-margin-top: 20px;
+  }
+  h2.sec .num {
+    display: inline-block; font-family: var(--mono); font-size: 15px; color: var(--accent);
+    background: rgba(88,166,255,0.12); border-radius: 8px; padding: 2px 10px; margin-right: 12px;
+    vertical-align: middle; font-weight: 600;
+  }
+  h3 { font-size: 20px; font-weight: 700; margin: 30px 0 10px; letter-spacing: -0.01em; }
+  h4 { font-size: 16px; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+  p { margin: 12px 0; }
+  strong { color: var(--text); font-weight: 700; }
+  a { color: var(--accent); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 7px 0; }
+
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    padding: 1.5px 6px; border-radius: 6px; color: var(--accent-2);
+  }
+  pre {
+    background: #0b0e13; border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; margin: 16px 0; position: relative;
+    font-size: 14px; line-height: 1.6;
+  }
+  @media (prefers-color-scheme: light) { pre { background: #f6f8fa; } }
+  pre code { background: none; border: none; padding: 0; color: var(--text); font-size: 14px; }
+  .c-kw { color: #ff7b72; } .c-fn { color: #d2a8ff; } .c-str { color: #a5d6ff; }
+  .c-com { color: var(--text-faint); font-style: italic; } .c-num { color: #79c0ff; }
+  .c-ok { color: var(--accent-2); } .c-bad { color: var(--danger); }
+  @media (prefers-color-scheme: light) {
+    .c-kw { color: #cf222e; } .c-fn { color: #8250df; } .c-str { color: #0a3069; } .c-num { color: #0550ae; }
+  }
+  .code-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-faint); margin: 18px 0 -8px;
+  }
+
+  /* Callouts */
+  .box {
+    margin: 20px 0; padding: 16px 20px; border-radius: 12px;
+    border: 1px solid var(--border); border-left-width: 4px; background: var(--bg-card);
+  }
+  .box .tag { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+  .box p:first-of-type { margin-top: 4px; }
+  .box p:last-child { margin-bottom: 0; }
+  .box.tip { border-left-color: var(--accent-2); }
+  .box.tip .tag { color: var(--accent-2); }
+  .box.warn { border-left-color: var(--warn); }
+  .box.warn .tag { color: var(--warn); }
+  .box.danger { border-left-color: var(--danger); }
+  .box.danger .tag { color: var(--danger); }
+  .box.note { border-left-color: var(--accent); }
+  .box.note .tag { color: var(--accent); }
+  .box.analogy { border-left-color: #d2a8ff; }
+  .box.analogy .tag { color: #d2a8ff; }
+
+  /* Command vs Query cards */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0; }
+  @media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+  .split .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--bg-card); }
+  .split .card.cmd { border-top: 3px solid var(--cmd); }
+  .split .card.qry { border-top: 3px solid var(--qry); }
+  .split .card h4 { margin-top: 0; font-size: 18px; }
+  .split .card.cmd h4 { color: var(--cmd); }
+  .split .card.qry h4 { color: var(--qry); }
+  .split .card ul { padding-left: 18px; margin: 8px 0 0; font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: none; }
+  td .yes { color: var(--accent-2); font-weight: 700; }
+  td .no { color: var(--danger); font-weight: 700; }
+
+  .ladder { counter-reset: step; margin: 20px 0; padding: 0; list-style: none; }
+  .ladder li {
+    position: relative; padding: 14px 18px 14px 60px; margin: 12px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .ladder li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 16px; top: 14px; width: 30px; height: 30px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 15px;
+  }
+  .ladder li strong { display: block; margin-bottom: 3px; }
+
+  .diagram {
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre;
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; overflow-x: auto; color: var(--text-dim); margin: 18px 0;
+  }
+
+  .kicker { color: var(--text-dim); font-size: 15px; margin: 2px 0 18px; }
+
+  footer {
+    padding: 40px 0 60px; color: var(--text-faint); font-size: 14px;
+  }
+  footer h3 { color: var(--text-dim); font-size: 15px; }
+  footer a { color: var(--text-dim); }
+  footer ul { padding-left: 20px; }
+
+  .tldr {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(126,231,135,0.06));
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin: 24px 0;
+  }
+  .tldr .tag { color: var(--accent); font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+  .tldr p { margin: 8px 0 0; font-size: 16px; }
+
+  /* ===== 모바일 대응 (mobile) ===== */
+  html { -webkit-text-size-adjust: 100%; }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px; }
+    header.hero { padding: 48px 0 34px; }
+    h1 { font-size: clamp(25px, 7.2vw, 34px); }
+    .lede { font-size: 17px; }
+    .quote-hero { font-size: 15px; padding: 11px 15px; }
+    .pill { font-size: 12px; padding: 5px 11px; }
+    main { padding: 6px 0 56px; }
+    section { padding: 26px 0; }
+    h2.sec { font-size: clamp(21px, 5.6vw, 26px); }
+    h2.sec .num { font-size: 13px; padding: 2px 8px; margin-right: 9px; }
+    h3 { font-size: 18px; }
+
+    /* 긴 식별자(innodb_flush_log_at_trx_commit 등)가 표·문단을 밀어내지 않도록 */
+    /* 긴 토큰은 code 안에만 있으므로 줄바꿈 허용은 code로 한정한다.
+       셀 전체에 걸면 'PostgreSQL'이 글자 단위로 쪼개진다. */
+    code { overflow-wrap: anywhere; }
+    th, td { padding: 9px 10px; font-size: 14px; }
+    th { font-size: 12px; }
+    td code, th code { font-size: 0.82em; }
+
+    pre { padding: 14px 15px; }
+    pre, pre code { font-size: 13px; }
+    .diagram { font-size: 11px; padding: 15px; line-height: 1.45; }
+    .box { padding: 14px 16px; }
+    .tldr { padding: 17px 18px; }
+    .tldr p { font-size: 15px; }
+    .stat .big { font-size: 23px; }
+    .ladder li { padding: 13px 15px 13px 52px; }
+    .ladder li::before { left: 13px; top: 13px; width: 27px; height: 27px; font-size: 14px; }
+    nav.toc { padding: 18px 18px; margin: 26px 0; }
+    footer { padding: 30px 0 48px; }
+
+    /* index.html 카드 */
+    a.card { padding: 17px 18px; }
+    a.card h3 { font-size: 19px; }
+    a.card .date { margin-left: 0; width: 100%; order: 3; }
+    a.card .desc, a.card .quote { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Backend Fundamentals · 주니어 개발자용</div>
+    <h1>CQRS와 결정론적 알고리즘</h1>
+    <p class="lede">읽기와 쓰기를 나누는 법, 그리고 "같은 입력이면 항상 같은 결과"를 보장하는 법. 두 개념을 예제 중심으로, 왜 필요한지부터 언제 쓰면 안 되는지까지 정리했습니다.</p>
+    <div class="meta-row">
+      <span class="pill">☕ 읽는 데 ~20분</span>
+      <span class="pill">🎯 실무 예제 포함</span>
+      <span class="pill">⚠️ 안티패턴 경고 포함</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#intro">왜 이 둘을 같이 배우나</a></li>
+      <li><a href="#cqs">먼저: CQS (명령과 조회 분리)</a></li>
+      <li><a href="#cqrs">CQRS란 무엇인가</a></li>
+      <li><a href="#cqrs-why">CQRS가 푸는 문제</a></li>
+      <li><a href="#cqrs-levels">CQRS의 3단계</a></li>
+      <li><a href="#cqrs-code">코드로 보는 CQRS</a></li>
+      <li><a href="#eventual">최종 일관성의 함정</a></li>
+      <li><a href="#cqrs-when">언제 쓰고, 언제 쓰지 말까</a></li>
+      <li><a href="#det">결정론적 알고리즘이란</a></li>
+      <li><a href="#det-why">왜 결정론이 중요한가</a></li>
+      <li><a href="#det-sources">비결정성은 어디서 오나</a></li>
+      <li><a href="#det-fix">결정론적으로 만드는 법</a></li>
+      <li><a href="#bridge">두 개념이 만나는 지점</a></li>
+      <li><a href="#cheatsheet">한 장 요약 치트시트</a></li>
+    </ol>
+  </nav>
+</div>
+
+<main class="wrap">
+
+  <section id="intro">
+    <h2 class="sec"><span class="num">00</span>왜 이 둘을 같이 배우나</h2>
+    <p>겉보기엔 상관없어 보이는 두 주제입니다. 하지만 실무에서는 거의 항상 붙어 다닙니다.</p>
+    <p><strong>CQRS</strong>는 "읽기(조회)와 쓰기(변경)를 서로 다른 모델로 다루자"는 설계 패턴입니다. 그런데 읽기 전용 모델을 따로 만들면, 그 데이터가 <em>매번 똑같은 순서와 값으로</em> 만들어진다는 보장이 필요합니다. 오늘 조회하면 A가 1등인데 내일 같은 데이터로 조회하면 B가 1등이면 아무도 그 시스템을 못 믿으니까요.</p>
+    <p>여기서 <strong>결정론적 알고리즘</strong>이 등장합니다. 같은 입력이면 항상 같은 출력. 랭킹, 집계, 리스트 정렬처럼 "읽기 모델"을 만드는 로직은 반드시 결정론적이어야 합니다.</p>
+    <div class="box note">
+      <span class="tag">한 문장 요약</span>
+      <p>CQRS는 <strong>읽기와 쓰기를 나누는 구조</strong>, 결정론은 <strong>그 읽기 결과가 흔들리지 않게 하는 성질</strong>. 좋은 조회 시스템은 둘 다 필요합니다.</p>
+    </div>
+  </section>
+
+  <section id="cqs">
+    <h2 class="sec"><span class="num">01</span>먼저 알아야 할 것: CQS</h2>
+    <p class="kicker">CQRS를 이해하려면 그 뿌리인 CQS부터.</p>
+    <p><strong>CQS(Command Query Separation)</strong>는 1980년대 Bertrand Meyer가 제안한 아주 단순한 규칙입니다. 함수(메서드)를 딱 두 종류로 나누라는 것.</p>
+    <div class="split">
+      <div class="card cmd">
+        <h4>⚙️ Command (명령)</h4>
+        <p style="font-size:15px;margin:4px 0 0">상태를 <strong>바꾸는</strong> 동작. 무언가를 쓰고, 저장하고, 지웁니다.</p>
+        <ul>
+          <li>조회 가능한 데이터를 돌려주지 않는 게 원칙 (실무선 새 id·성공여부 정도는 반환)</li>
+          <li>예: <code>createOrder()</code>, <code>cancel()</code></li>
+          <li>"뭔가를 <em>한다</em>"</li>
+        </ul>
+      </div>
+      <div class="card qry">
+        <h4>🔍 Query (조회)</h4>
+        <p style="font-size:15px;margin:4px 0 0">상태를 <strong>읽기만</strong> 하는 동작. 아무것도 바꾸지 않습니다.</p>
+        <ul>
+          <li>값을 돌려주는 게 목적</li>
+          <li>예: <code>getOrder()</code>, <code>totalPrice()</code></li>
+          <li>"뭔가를 <em>물어본다</em>"</li>
+        </ul>
+      </div>
+    </div>
+    <div class="box analogy">
+      <span class="tag">🍽️ 비유</span>
+      <p>식당에서 <strong>주문(Command)</strong>은 주방에 뭔가를 시키는 행위고, <strong>메뉴판 보기(Query)</strong>는 그냥 확인만 하는 행위입니다. 메뉴판을 봤다고 냉장고 재료가 줄어들면 안 되죠. 조회는 부작용(side effect)이 없어야 합니다.</p>
+    </div>
+    <p>핵심 규칙: <strong>"질문을 하면서 동시에 답을 바꾸지 마라(Asking a question should not change the answer)."</strong> CQRS는 이 아이디어를 함수 수준이 아니라 <em>시스템/모델 수준</em>으로 끌어올린 것입니다.</p>
+  </section>
+
+  <section id="cqrs">
+    <h2 class="sec"><span class="num">02</span>CQRS란 무엇인가</h2>
+    <p><strong>CQRS(Command Query Responsibility Segregation)</strong>는 "정보를 <strong>바꿀 때 쓰는 모델</strong>과 <strong>읽을 때 쓰는 모델</strong>을 아예 분리하자"는 패턴입니다. 이 용어는 <strong>Greg Young</strong>이 만들었고, Martin Fowler가 널리 알렸습니다. 요지는 <em>"정보를 업데이트할 때 쓰는 모델과, 읽을 때 쓰는 모델을 서로 다르게 둘 수 있다"</em>는 것입니다. (아래 인용은 모두 원문 그대로가 아니라 요지를 우리말로 옮긴 것입니다.)</p>
+    <p>보통의 CRUD 앱은 하나의 모델(예: <code>Order</code> 엔티티)로 쓰기도 하고 읽기도 합니다. CQRS는 이걸 둘로 쪼갭니다.</p>
+    <div class="diagram">일반 CRUD (한 모델이 다 함)
+┌──────────┐     ┌──────────────┐     ┌────────┐
+│  클라이언트  │ ──> │  Order 모델   │ ──> │   DB   │
+│          │ <── │ (읽기+쓰기 겸용) │ <── │        │
+└──────────┘     └──────────────┘     └────────┘
+
+
+CQRS (읽기/쓰기 모델 분리)
+                 ┌─────────────────┐
+        쓰기 ──> │  Write 모델      │ ──┐
+                 │ (검증·비즈니스로직)  │   │
+                 └─────────────────┘   ▼
+┌──────────┐                        ┌────────┐
+│  클라이언트  │                        │   DB   │
+└──────────┘                        └────────┘
+                 ┌─────────────────┐   ▲
+        읽기 <── │  Read 모델       │ ──┘
+                 │ (검증 없음, DTO만)  │
+                 └─────────────────┘</div>
+    <p><strong>Write 모델</strong>은 명령을 받아 유효성 검증과 비즈니스 규칙을 실행합니다. <strong>Read 모델</strong>은 비즈니스 로직이나 검증이 없고, 화면에 딱 맞는 형태(DTO)를 그냥 돌려줍니다. Microsoft 문서 표현으로는 "읽기 모델은 뷰에 쓸 DTO를 반환하며 검증 스택이 없다".</p>
+    <div class="box note">
+      <span class="tag">📎 용어: DTO</span>
+      <p><strong>DTO(Data Transfer Object)</strong> = 화면·API에 필요한 필드만 담아 나르는 단순한 데이터 묶음입니다. ORM 모델처럼 DB에 붙어 있거나 비즈니스 메서드를 갖지 않고, <em>값만</em> 실어 나릅니다. 그래서 읽기 쪽을 화면 모양대로 자유롭게 만들 수 있는 겁니다.</p>
+    </div>
+    <div class="box warn">
+      <span class="tag">흔한 오해</span>
+      <p>CQRS는 "DB를 두 개 쓰는 것"이 <strong>아닙니다</strong>. 가장 가벼운 CQRS는 DB 하나에서 <em>코드 구조만</em> 읽기/쓰기로 나눕니다. 별도 DB, 이벤트 소싱, 메시지 큐는 전부 <strong>선택 사항</strong>이고 더 무거운 단계입니다. 이 오해 때문에 많은 팀이 CQRS를 과하게 도입합니다.</p>
+    </div>
+  </section>
+
+  <section id="cqrs-why">
+    <h2 class="sec"><span class="num">03</span>CQRS가 실제로 푸는 문제</h2>
+    <p>"멋있어서" 쓰는 게 아닙니다. 아래 통증이 실제로 있을 때만 값을 합니다.</p>
+    <h4>1. 읽기와 쓰기의 요구가 서로 싸운다</h4>
+    <p>쓰기 쪽은 정규화된 깔끔한 테이블을 원하는데, 화면은 여러 테이블을 5개씩 조인한 복잡한 결과를 원합니다. 하나의 모델로 둘 다 만족시키려다 보면 쿼리가 괴물이 됩니다. 읽기 모델을 따로 두면 화면에 맞게 미리 가공(비정규화)해둘 수 있습니다.</p>
+    <p style="font-size:15px;color:var(--text-dim)"><strong>정규화</strong> = 중복 없이 여러 테이블로 잘게 쪼갠 것(쓰기·수정에 안전). <strong>비정규화</strong> = 조회 속도를 위해 일부러 미리 합치거나 복제해둔 것(읽기에 빠름). 쓰기는 정규화를 좋아하고, 화면은 비정규화를 좋아합니다. 이 둘의 충돌이 CQRS의 출발점입니다.</p>
+    <h4>2. 읽기가 쓰기보다 압도적으로 많다</h4>
+    <p>많은 서비스는 읽기가 쓰기보다 훨씬 많습니다(종종 수십~수백 배). Microsoft 문서도 "읽기 수가 쓰기 수보다 많을 때 CQRS가 특히 유리하다"고 말합니다. 이럴 때 읽기 모델만 <strong>읽기 전용 복제본(replica)을 여러 대 늘려</strong> 트래픽을 분산하고, 쓰기 모델은 적은 인스턴스로 정합성을 지킬 수 있습니다.</p>
+    <h4>3. 팀이 서로 밟는다</h4>
+    <p>한 팀은 복잡한 주문 비즈니스 로직(쓰기)을, 다른 팀은 대시보드/리스트 화면(읽기)을 만듭니다. 모델을 나누면 독립적으로 일할 수 있습니다.</p>
+    <h4>4. 감사 로그 / 과거 상태 복원이 필요하다</h4>
+    <p>"이 주문이 어떤 경로로 지금 상태가 됐지?"를 추적해야 하는 도메인. 이건 CQRS와 자주 짝을 이루는 <em>이벤트 소싱</em>의 영역입니다.</p>
+    <div class="box note">
+      <span class="tag">📎 용어: 이벤트 소싱</span>
+      <p><strong>이벤트 소싱(Event Sourcing)</strong> = 현재 상태만 저장하는 대신, "무슨 일이 일어났는지"를 변경 이벤트로 순서대로 <em>전부 기록</em>해두고, 그 기록을 재생해서 상태를 재구성하는 방식입니다. CQRS와 자주 함께 쓰이지만 <strong>둘은 서로 독립적인 별개 패턴</strong>입니다. CQRS를 쓴다고 이벤트 소싱을 꼭 써야 하는 건 아닙니다.</p>
+    </div>
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각</span>
+      <p>원본 데이터(쓰기)와, 그걸 미리 계산해둔 조회용 테이블(읽기)을 나누는 순간 이미 CQRS를 하고 있는 겁니다. 랭킹·대시보드처럼 "복잡하게 집계해서 보여주기만" 하는 화면이 대표적인 무대입니다.</p>
+    </div>
+  </section>
+
+  <section id="cqrs-levels">
+    <h2 class="sec"><span class="num">04</span>CQRS의 3단계 (가벼운 것부터)</h2>
+    <p class="kicker">CQRS는 스위치가 아니라 다이얼입니다. 필요한 만큼만 돌리세요.</p>
+    <ol class="ladder">
+      <li>
+        <strong>1단계 — 같은 DB, 코드만 분리</strong>
+        같은 데이터베이스를 쓰되 쓰기 경로와 읽기 경로를 나눕니다. 단순히 클래스 두 개로 쪼개는 게 아니라, <strong>읽기 쪽이 쓰기 모델과 다른 자기만의 모델(화면용 DTO)을 갖는 것</strong>이 CQRS의 최소 조건입니다. (쓰기·읽기가 똑같은 엔티티를 그대로 반환하면 그건 아직 CQRS가 아니라 그냥 서비스 계층 분리입니다.) 리스크가 거의 없고, 여기서 얻는 이득이 대부분입니다.
+      </li>
+      <li>
+        <strong>2단계 — 별도의 읽기 전용 모델/테이블</strong>
+        같은 DB 안에서 조회용으로 미리 가공한 테이블(예: <code>order_summary</code>, <code>ranking_snapshot</code>)을 둡니다. 원본을 조회용 모양으로 가공해 이 테이블을 채우는 과정을 <strong>프로젝션(projection)</strong>이라고 부릅니다(이 문서의 핵심 개념 — §12에서 다시 나옵니다). 이 단계에선 보통 <strong>쓰기와 같은 트랜잭션 안에서 동기(synchronous)로 갱신</strong>하므로 데이터가 항상 최신입니다(강한 일관성). 화면 쿼리는 단순해지고 빨라집니다.
+      </li>
+      <li>
+        <strong>3단계 — 물리적으로 분리된 저장소 + 이벤트</strong>
+        쓰기 DB와 읽기 DB를 아예 다른 저장소로 둡니다(예: 쓰기는 PostgreSQL, 읽기는 Elasticsearch/Redis). 여기서는 쓰기가 이벤트를 발행하면 읽기 저장소가 <strong>비동기(asynchronous)로 나중에</strong> 그걸 구독해 갱신합니다. 갱신이 즉시가 아니라 "나중에"이기 때문에 <strong>최종 일관성</strong> 문제(§06)를 떠안습니다. 가장 강력하지만 가장 복잡합니다.
+      </li>
+    </ol>
+    <div class="box danger">
+      <span class="tag">⚠️ 주니어가 가장 많이 하는 실수</span>
+      <p>블로그에서 3단계(이벤트 소싱 + Kafka + 별도 DB)를 보고 "이게 CQRS구나" 하고 첫 프로젝트부터 도입합니다. 그리고 최종 일관성 버그, 동기화 지옥, 디버깅 난이도에 파묻힙니다. <strong>1단계부터 시작하고, 통증이 실제로 생길 때만 다음 단계로.</strong></p>
+    </div>
+  </section>
+
+  <section id="cqrs-code">
+    <h2 class="sec"><span class="num">05</span>코드로 보는 CQRS</h2>
+    <p>1단계 CQRS를 파이썬(Django 스타일)으로 보겠습니다. 핵심은 "쓰기 경로"와 "읽기 경로"가 서로 다른 진입점을 갖는다는 것.</p>
+
+    <p class="code-label">Before — 하나의 서비스가 다 함 (CRUD)</p>
+<pre><code><span class="c-kw">class</span> <span class="c-fn">OrderService</span>:
+    <span class="c-kw">def</span> <span class="c-fn">create_order</span>(self, user, items):     <span class="c-com"># 쓰기</span>
+        <span class="c-com"># 검증 + 저장 + ...</span>
+        <span class="c-kw">return</span> Order.objects.create(...)
+
+    <span class="c-kw">def</span> <span class="c-fn">get_dashboard</span>(self, user):          <span class="c-com"># 읽기</span>
+        <span class="c-com"># 같은 Order 모델을 5중 조인해서 화면용으로 가공...</span>
+        <span class="c-kw">return</span> Order.objects.filter(...).select_related(...)  <span class="c-com"># 점점 괴물이 됨</span></code></pre>
+
+    <p class="code-label">After — 명령과 조회를 분리 (1단계 CQRS)</p>
+<pre><code><span class="c-com"># ===== 쓰기(Command) 경로: 검증·비즈니스 로직이 여기 산다 =====</span>
+<span class="c-kw">class</span> <span class="c-fn">CreateOrderCommand</span>:
+    user_id: int
+    items: list
+
+<span class="c-kw">class</span> <span class="c-fn">OrderCommandHandler</span>:
+    <span class="c-kw">def</span> <span class="c-fn">handle</span>(self, cmd: CreateOrderCommand) -> int:
+        self._validate(cmd)                <span class="c-com"># 재고, 권한, 금액 검증</span>
+        order = Order.objects.create(...)  <span class="c-com"># 정규화된 원본 저장</span>
+        <span class="c-kw">return</span> order.id                     <span class="c-com"># 명령은 id 정도만 반환</span>
+
+
+<span class="c-com"># ===== 읽기(Query) 경로: 검증 없음, 화면용 DTO만 =====</span>
+<span class="c-kw">class</span> <span class="c-fn">DashboardDTO</span>:              <span class="c-com"># 화면에 딱 맞는 모양</span>
+    total_orders: int
+    recent: list
+
+<span class="c-kw">class</span> <span class="c-fn">OrderQueryService</span>:
+    <span class="c-kw">def</span> <span class="c-fn">get_dashboard</span>(self, user_id: int) -> DashboardDTO:
+        <span class="c-com"># 읽기 전용. 조회에 최적화된 쿼리/뷰를 자유롭게 사용</span>
+        row = read_dashboard_view(user_id)   <span class="c-com"># 미리 가공된 뷰/테이블</span>
+        <span class="c-kw">return</span> DashboardDTO(total_orders=row.cnt, recent=row.items)</code></pre>
+
+    <div class="box tip">
+      <span class="tag">✅ 여기서 얻는 것</span>
+      <p>쓰기 쪽은 "정확함"에만 집중하고, 읽기 쪽은 "빠르고 화면에 맞음"에만 집중합니다. 둘의 요구가 더 이상 한 클래스 안에서 충돌하지 않습니다. DB는 여전히 하나입니다.</p>
+    </div>
+
+    <div class="box note">
+      <span class="tag">📎 "명령은 값을 반환 안 한다"고 하지 않았나?</span>
+      <p>§01의 엄격한 CQS 규칙은 "조회 가능한 <em>도메인 데이터</em>를 명령이 반환하지 마라"는 뜻입니다. 위 <code>handle()</code>이 <code>order.id</code>를 돌려주는 것처럼, 실무의 명령은 보통 <strong>최소한의 확인값(새로 만든 id, 성공/실패)</strong> 정도는 반환합니다. 이건 규칙 위반이 아니라 널리 쓰이는 현실적 완화입니다.</p>
+    </div>
+
+    <p class="code-label">2단계 맛보기 — 쓰기와 같은 트랜잭션에서 읽기 테이블 동기 갱신</p>
+<pre><code><span class="c-kw">class</span> <span class="c-fn">OrderCommandHandler</span>:
+    <span class="c-fn">@transaction.atomic</span>              <span class="c-com"># 원본 저장과 읽기 테이블 갱신을 한 트랜잭션으로</span>
+    <span class="c-kw">def</span> <span class="c-fn">handle</span>(self, cmd) -> int:
+        order = Order.objects.create(...)        <span class="c-com"># ① 정규화된 원본(쓰기 모델)</span>
+        <span class="c-fn">rebuild_order_summary</span>(order.user_id)     <span class="c-com"># ② 조회용 테이블을 즉시 갱신 = 프로젝션</span>
+        <span class="c-kw">return</span> order.id
+<span class="c-com"># 같은 트랜잭션이라 읽기 테이블이 항상 최신 → 강한 일관성 (아직 최종 일관성 문제 없음)</span></code></pre>
+  </section>
+
+  <section id="eventual">
+    <h2 class="sec"><span class="num">06</span>최종 일관성(Eventual Consistency)의 함정</h2>
+    <p>3단계(별도 읽기 저장소)로 가면 반드시 만나는 주제입니다. 앞 §04에서 봤듯 3단계는 읽기 저장소를 <strong>비동기로 나중에</strong> 갱신합니다. 그래서 쓰기 DB에 데이터가 저장된 순간과, 읽기 DB에 반영되는 순간 사이에 <strong>시간차</strong>가 생깁니다. (2단계처럼 같은 트랜잭션에서 동기로 갱신하면 이 문제가 없습니다.)</p>
+    <div class="diagram">사용자가 글 작성 ──> [쓰기 DB 저장 완료] ✅
+                          │
+                          │  이벤트 발행 → 읽기 DB 반영 (몇 ms ~ 몇 초)
+                          ▼
+사용자가 새로고침 ──> [읽기 DB] ❓ 아직 내 글이 안 보임!</div>
+    <p>이게 "eventual consistency"입니다. <em>결국엔</em> 일치하지만, 그 순간엔 읽기 데이터가 오래된(stale) 상태일 수 있습니다. Microsoft 문서도 "읽기 데이터가 최신 변경을 즉시 반영하지 못해 오래된 데이터가 나올 수 있다"고 명시합니다.</p>
+    <div class="box warn">
+      <span class="tag">실무에서 겪는 증상</span>
+      <p>"방금 저장했는데 목록에 안 떠요" 버그의 상당수가 이겁니다. 대응책: 쓰기 직후엔 <strong>낙관적 업데이트</strong>(서버 반영을 기다리지 않고, 방금 입력한 내용을 화면에 먼저 그려주는 것)로 보여주기. 또는 정말 즉시 일관성이 필요한 화면이면 3단계 대신 2단계(동기 갱신)를 쓰거나, 아예 CQRS를 쓰지 않기.</p>
+    </div>
+  </section>
+
+  <section id="cqrs-when">
+    <h2 class="sec"><span class="num">07</span>언제 쓰고, 언제 쓰지 말까</h2>
+    <p>Martin Fowler의 조언은 단호합니다. 요지는 <em>대부분의 시스템은 그냥 CRUD로 남는 게 맞고, CQRS는 위험한 복잡성을 더한다</em>는 것. 그리고 시스템 전체가 아니라 <strong>특정 기능 영역 하나에만</strong> 적용하라고 합니다.</p>
+    <table>
+      <thead><tr><th>✅ 쓰기 좋은 경우</th><th>🚫 쓰지 말아야 할 경우</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>읽기가 쓰기보다 압도적으로 많음</td>
+          <td>단순한 CRUD 앱 (게시판, 관리자 페이지)</td>
+        </tr>
+        <tr>
+          <td>화면용 조회가 매우 복잡함 (랭킹, 대시보드, 피드)</td>
+          <td>읽기/쓰기 모델이 거의 똑같이 생김</td>
+        </tr>
+        <tr>
+          <td>읽기와 쓰기를 따로 확장해야 함</td>
+          <td>즉시 일관성이 필수인 화면 (잔액, 재고 카운트)</td>
+        </tr>
+        <tr>
+          <td>비즈니스 규칙이 복잡하고 자주 바뀜</td>
+          <td>팀이 작고 도메인이 단순함</td>
+        </tr>
+        <tr>
+          <td>감사 로그 / 과거 상태 복원이 필요함</td>
+          <td>"멋있어 보여서" — 이건 이유가 아닙니다</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="box note">
+      <span class="tag">기억할 규칙</span>
+      <p>CQRS는 <strong>전부 아니면 전무</strong>가 아닙니다. 앱의 한 부분(예: 랭킹 화면)에만 적용하고 나머지는 평범한 CRUD로 두는 게 정상이고 건강한 설계입니다.</p>
+    </div>
+  </section>
+
+  <section id="det">
+    <h2 class="sec"><span class="num">08</span>결정론적 알고리즘이란</h2>
+    <p><strong>결정론적(deterministic) 알고리즘</strong>은 <strong>같은 입력이면 항상 같은 출력을 내는</strong> 알고리즘입니다. 실행할 때마다, 어느 서버에서 돌리든, 오늘이든 내일이든 결과가 똑같습니다. 무작위성이나 외부 상태에 의존하지 않고, 정해진 단계를 그대로 따릅니다.</p>
+    <div class="split">
+      <div class="card qry">
+        <h4>✅ 결정론적</h4>
+        <ul>
+          <li><code>sort([3,1,2])</code> → 항상 <code>[1,2,3]</code></li>
+          <li>같은 입력 → 같은 출력, 100% 재현</li>
+          <li>테스트 가능, 캐시 가능, 디버깅 쉬움</li>
+        </ul>
+      </div>
+      <div class="card cmd">
+        <h4>🎲 비결정론적</h4>
+        <ul>
+          <li><code>shuffle(list)</code> → 매번 다름</li>
+          <li><code>now()</code>, <code>random()</code>에 의존</li>
+          <li>"내 컴퓨터에선 됐는데" 버그의 원천</li>
+        </ul>
+      </div>
+    </div>
+    <div class="box analogy">
+      <span class="tag">🎰 비유</span>
+      <p>결정론적 알고리즘은 <strong>계산기</strong>입니다. <code>2 + 2</code>는 언제 눌러도 4. 비결정론적 알고리즘은 <strong>슬롯머신</strong>입니다. 같은 레버를 당겨도 결과가 다르죠. 백엔드 로직 대부분은 계산기여야 하고, 슬롯머신이면 안 됩니다.</p>
+    </div>
+  </section>
+
+  <section id="det-why">
+    <h2 class="sec"><span class="num">09</span>왜 결정론이 중요한가</h2>
+    <h4>1. 테스트가 가능해진다</h4>
+    <p>결정론적이면 <code>assert rank(data) == expected</code>가 항상 통과합니다. 비결정론적이면 테스트가 어쩔 땐 통과하고 어쩔 땐 실패하는 <strong>플래키(flaky) 테스트</strong>가 됩니다. 팀 전체의 신뢰를 갉아먹는 주범입니다.</p>
+    <h4>2. 캐싱이 안전해진다</h4>
+    <p>같은 입력이 같은 출력을 낸다면, 결과를 캐시에 저장했다가 재사용해도 안전합니다. 비결정론적이면 캐시된 값이 틀린 값일 수 있습니다.</p>
+    <h4>3. 재현과 디버깅이 가능해진다</h4>
+    <p>버그가 났을 때 "같은 입력을 다시 넣으면 같은 버그가 재현된다"는 건 엄청난 자산입니다. 비결정론적 버그는 재현이 안 돼서 고치기가 지옥입니다.</p>
+    <h4>4. 분산 환경에서 여러 노드가 같은 결과에 도달한다</h4>
+    <p>여러 서버가 같은 데이터를 각자 정렬했는데 결과가 다르면 페이지네이션이 깨지고, 리더보드 순위가 서버마다 다르게 보입니다. 결정론은 여러 노드가 같은 입력에서 같은 상태에 수렴하게 하는 <strong>전제 조건</strong>입니다(복제 상태 머신의 기반). 참고로 이건 Raft·Paxos 같은 "합의(consensus)" 알고리즘 그 자체는 아니고, 그것이 동작하기 위한 바탕입니다.</p>
+    <div class="box tip">
+      <span class="tag">✅ 대표 무대: 랭킹</span>
+      <p>리더보드, 검색 결과, 추천 피드, 콘텐츠 순위 — 전부 "같은 데이터면 같은 순위"가 생명입니다. 여기서 결정론이 깨지면 사용자가 새로고침할 때마다 순위가 춤을 춥니다.</p>
+    </div>
+  </section>
+
+  <section id="det-sources">
+    <h2 class="sec"><span class="num">10</span>비결정성은 어디서 오나</h2>
+    <p>대부분의 비결정성은 "실수로 흘려보낸" 것입니다. 범인 목록:</p>
+    <table>
+      <thead><tr><th>원인</th><th>예시</th><th>해결 방향</th></tr></thead>
+      <tbody>
+        <tr><td>⏰ 현재 시각</td><td><code>datetime.now()</code>를 로직에 섞음</td><td>시각을 입력으로 주입(inject)</td></tr>
+        <tr><td>🎲 난수</td><td><code>random()</code>, <code>uuid4()</code></td><td>시드(seed) 고정 / 밖에서 주입 (<code>uuid4</code>는 시드 불가 → id를 주입하거나 <code>uuid5</code>)</td></tr>
+        <tr><td>🗺️ 집합 순회 순서</td><td><code>set</code> 순서 (Python <code>dict</code>는 3.7+ 삽입순서라 안전)</td><td>순회 전에 명시적으로 정렬</td></tr>
+        <tr><td>⚡ 동시성 / 병렬</td><td>스레드가 끝나는 순서가 매번 다름</td><td>결과를 모은 뒤 결정론적으로 정렬</td></tr>
+        <tr><td>🔢 부동소수점 순서</td><td><code>a+b+c</code>의 덧셈 순서 차이</td><td>합산 순서 고정, 정수/decimal 사용</td></tr>
+        <tr><td>🌐 외부 I/O</td><td>API 응답 순서, DB의 <code>ORDER BY</code> 없는 조회</td><td>항상 명시적 정렬, 응답 정규화</td></tr>
+        <tr><td>🤝 정렬 동점(tie)</td><td>점수가 같은 두 항목의 순서가 들쭉날쭉</td><td>고유 키로 타이브레이커 추가 ⭐</td></tr>
+      </tbody>
+    </table>
+    <div class="box danger">
+      <span class="tag">⚠️ 가장 흔한 함정: ORDER BY의 동점</span>
+      <p>SQL에서 <code>ORDER BY score DESC</code>만 쓰면, 점수가 같은 행들의 순서는 <strong>DB가 마음대로</strong> 정합니다. 오늘과 내일이 다를 수 있고, 페이지네이션이 깨집니다. 검색 결과에서 이런 경고가 반복해서 나옵니다: <em>"재현성이 중요하면 ORDER BY에 고유한 타이브레이커 컬럼을 반드시 넣어라."</em></p>
+    </div>
+  </section>
+
+  <section id="det-fix">
+    <h2 class="sec"><span class="num">11</span>결정론적으로 만드는 법</h2>
+
+    <h3>핵심 기법 1 — 안정 정렬 + 타이브레이커</h3>
+    <p><strong>안정 정렬(stable sort)</strong>은 값이 같은 항목들의 <em>원래 순서를 유지</em>하는 정렬입니다. 하지만 원래 순서 자체가 안 정해져 있으면 소용없습니다. 그래서 <strong>타이브레이커(tie-breaker)</strong>, 즉 동점일 때 순서를 가르는 <em>고유한 2차 기준</em>을 추가합니다.</p>
+
+    <p class="code-label">❌ 나쁜 예 — 동점 순서가 입력에 끌려감</p>
+<pre><code><span class="c-com"># Python sorted는 안정 정렬이라, "같은 입력"이면 매번 결과가 같다.</span>
+<span class="c-com"># 문제는 입력 users의 순서가 보장되지 않을 때: 점수가 같은 항목의</span>
+<span class="c-com"># 최종 순서가 입력 순서에 따라 흔들린다 (안정 정렬은 정해지지 않은 순서를 지켜줄 뿐).</span>
+ranked = <span class="c-fn">sorted</span>(users, key=<span class="c-kw">lambda</span> u: u.score, reverse=<span class="c-kw">True</span>)</code></pre>
+
+    <p class="code-label">✅ 좋은 예 — 고유 키로 동점을 확정</p>
+<pre><code><span class="c-com"># 1차: 점수 내림차순, 2차: id 오름차순(고유하므로 순서가 100% 확정)</span>
+ranked = <span class="c-fn">sorted</span>(
+    users,
+    key=<span class="c-kw">lambda</span> u: (-u.score, u.id)   <span class="c-com"># 튜플: 앞 기준이 같으면 뒤 기준으로</span>
+)
+<span class="c-com"># 이제 같은 users 리스트면 언제 어디서 돌려도 결과가 동일 ✅</span></code></pre>
+
+    <p class="code-label">✅ SQL에서도 동일 원칙</p>
+<pre><code><span class="c-com">-- ❌ 동점 시 순서 불확정</span>
+<span class="c-kw">SELECT</span> * <span class="c-kw">FROM</span> ranking <span class="c-kw">ORDER BY</span> score <span class="c-kw">DESC</span>;
+
+<span class="c-com">-- ✅ 고유 컬럼(id)을 타이브레이커로 → 완전 결정론적</span>
+<span class="c-kw">SELECT</span> * <span class="c-kw">FROM</span> ranking <span class="c-kw">ORDER BY</span> score <span class="c-kw">DESC</span>, id <span class="c-kw">ASC</span>;</code></pre>
+
+    <div class="box tip">
+      <span class="tag">✅ 황금 규칙</span>
+      <p><strong>정렬 기준의 마지막엔 항상 "고유한" 컬럼을 넣어라.</strong> id, created_at + id, uuid 등. 그러면 동점이 생겨도 순서가 단 하나로 확정됩니다.</p>
+    </div>
+
+    <h3>핵심 기법 2 — 비결정성을 "밖으로" 밀어내기</h3>
+    <p>시간과 난수를 로직 <em>안</em>에서 부르지 말고, <em>바깥</em>에서 입력으로 넣어주세요. 이걸 "결정론적 코어, 비결정론적 껍질(functional core, imperative shell)"이라고 부릅니다.</p>
+
+    <p class="code-label">❌ 함수 안에서 now()를 부름 → 테스트 불가</p>
+<pre><code><span class="c-kw">def</span> <span class="c-fn">is_expired</span>(token):
+    <span class="c-kw">return</span> token.expires_at &lt; datetime.<span class="c-fn">now</span>()   <span class="c-com"># 매 실행마다 기준이 바뀜</span></code></pre>
+
+    <p class="code-label">✅ 시각을 인자로 주입 → 100% 결정론적, 테스트 쉬움</p>
+<pre><code><span class="c-kw">def</span> <span class="c-fn">is_expired</span>(token, now):        <span class="c-com"># 시각을 밖에서 받음</span>
+    <span class="c-kw">return</span> token.expires_at &lt; now
+
+<span class="c-com"># 테스트에서 특정 시각을 고정해 넣을 수 있음</span>
+<span class="c-kw">assert</span> <span class="c-fn">is_expired</span>(tok, now=datetime(<span class="c-num">2026</span>, <span class="c-num">1</span>, <span class="c-num">1</span>)) == <span class="c-kw">True</span></code></pre>
+
+    <h3>핵심 기법 3 — 순회 전에 정렬</h3>
+    <p>순서가 중요한 곳에서 <code>set</code>을 순회하기 전에는 명시적으로 정렬하세요. (Python <code>dict</code>는 삽입 순서를 보장하므로, 결정적으로 채웠다면 그대로 순회해도 안전합니다. 위험한 건 <code>set</code>, 그리고 비결정적 소스로 채운 컬렉션입니다.) 병렬 작업의 결과를 모을 때도 마지막에 결정론적으로 정렬해 합칩니다.</p>
+<pre><code><span class="c-com"># ❌ set 순회 순서에 의존 (프로세스마다 달라질 수 있음)</span>
+<span class="c-kw">for</span> item <span class="c-kw">in</span> my_set: ...
+
+<span class="c-com"># ✅ 명시적 정렬 후 순회</span>
+<span class="c-kw">for</span> item <span class="c-kw">in</span> <span class="c-fn">sorted</span>(my_set): ...</code></pre>
+
+    <div class="box note">
+      <span class="tag">참고: 의도적 비결정성</span>
+      <p>모든 비결정성이 나쁜 건 아닙니다. 셔플, A/B 테스트 배정, 암호학적 난수는 <em>일부러</em> 무작위여야 합니다. 핵심은 <strong>"무작위가 필요한 곳에만 두고, 나머지는 전부 결정론적으로"</strong> 통제하는 것입니다.</p>
+    </div>
+  </section>
+
+  <section id="bridge">
+    <h2 class="sec"><span class="num">12</span>두 개념이 만나는 지점</h2>
+    <p>이제 처음의 질문으로 돌아갑니다. CQRS와 결정론은 왜 짝일까요?</p>
+    <p>CQRS의 <strong>읽기 모델</strong>은 원본 데이터를 가공해서 만든 "미리 계산된 뷰"입니다. 랭킹 스냅샷, 대시보드 집계, 검색 인덱스 같은 것들이죠. 이 뷰를 만드는 과정을 <strong>프로젝션(projection)</strong>이라고 부릅니다.</p>
+    <div class="diagram">[쓰기 모델: 원본 이벤트/데이터]
+            │
+            │  프로젝션(집계·정렬·가공)  ← 이 로직이 반드시 결정론적!
+            ▼
+[읽기 모델: 랭킹 스냅샷 / 대시보드 / 검색 인덱스]</div>
+    <p><strong>이 프로젝션이 결정론적이지 않으면 CQRS 전체가 무너집니다.</strong> 왜냐하면:</p>
+    <ul>
+      <li>읽기 모델을 <strong>다시 만들어야</strong> 할 때(버그 수정, 스키마 변경으로 재생성) 같은 원본에서 같은 결과가 나와야 합니다. 안 그러면 순위가 갑자기 바뀝니다.</li>
+      <li>여러 인스턴스가 각자 프로젝션을 돌릴 때 결과가 <strong>일치</strong>해야 합니다.</li>
+      <li>동점 처리(타이브레이커)가 없으면 재생성할 때마다 리더보드 순위가 요동칩니다.</li>
+    </ul>
+    <div class="box tip">
+      <span class="tag">✅ 실무 한 줄</span>
+      <p>"CQRS로 읽기 전용 랭킹 테이블을 만든다"면, 그 랭킹을 계산하는 정렬에는 <strong>반드시 고유 키 타이브레이커</strong>가 들어가야 합니다. 이 둘은 세트입니다. 집계는 <strong>멱등(idempotent)</strong>하게, 정렬은 결정론적으로.</p>
+      <p style="font-size:14px;color:var(--text-dim);margin-top:8px"><strong>멱등</strong> = 같은 집계를 여러 번 돌려도 한 번 돌린 것과 결과가 같음(중복 반영 안 됨) → 재생성·재시도가 안전. <strong>결정론</strong> = 같은 입력이면 항상 같은 출력. 둘은 다른 성질이지만, 읽기 모델을 안전하게 다시 만들려면 둘 다 필요합니다.</p>
+    </div>
+  </section>
+
+  <section id="cheatsheet">
+    <h2 class="sec"><span class="num">13</span>한 장 요약 치트시트</h2>
+    <div class="tldr">
+      <span class="tag">CQRS</span>
+      <p><strong>읽기 모델과 쓰기 모델을 분리하는 패턴.</strong> 쓰기는 검증·비즈니스 로직, 읽기는 화면용 DTO. DB를 나누는 게 아니라 <em>책임을 나누는 것</em>. 1단계(코드만 분리)부터 시작하고, 통증이 생길 때만 다음 단계로. 대부분의 앱은 CRUD로 충분하다.</p>
+    </div>
+    <div class="tldr">
+      <span class="tag">결정론적 알고리즘</span>
+      <p><strong>같은 입력 → 항상 같은 출력.</strong> 테스트·캐싱·재현·분산 수렴의 전제. 비결정성의 주범은 시간·난수·set 순서·동시성·정렬 동점. 해법: 시간/난수는 밖에서 주입하고, 정렬 마지막엔 항상 고유 키 타이브레이커를 넣어라.</p>
+    </div>
+    <table>
+      <thead><tr><th>상황</th><th>이렇게</th></tr></thead>
+      <tbody>
+        <tr><td>단순 CRUD 앱</td><td>CQRS 쓰지 마라</td></tr>
+        <tr><td>복잡한 랭킹/대시보드 화면</td><td>읽기 모델 분리(CQRS) + 결정론적 정렬</td></tr>
+        <tr><td><code>ORDER BY</code> 쓸 때</td><td>마지막에 고유 컬럼(id) 추가</td></tr>
+        <tr><td>로직에서 시간/난수 필요</td><td>인자로 주입해서 결정론 유지</td></tr>
+        <tr><td>테스트가 가끔 실패(flaky)</td><td>숨은 비결정성부터 의심</td></tr>
+        <tr><td>"방금 저장했는데 안 보임"</td><td>CQRS 최종 일관성 지연 확인</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <h3>더 읽어보기 (출처)</h3>
+  <ul>
+    <li>Martin Fowler — <a href="https://martinfowler.com/bliki/CQRS.html">bliki: CQRS</a> (개념의 원전, "대부분은 CRUD로 남아라")</li>
+    <li>Microsoft Learn — <a href="https://learn.microsoft.com/en-us/azure/architecture/patterns/cqrs">CQRS Pattern (Azure Architecture Center)</a> (장단점·읽기/쓰기 모델)</li>
+    <li>Wikipedia — <a href="https://en.wikipedia.org/wiki/Command%E2%80%93query_separation">Command–query separation (CQS)</a></li>
+    <li>Wikipedia — <a href="https://en.wikipedia.org/wiki/Nondeterministic_algorithm">Nondeterministic algorithm</a> (비결정성의 원인)</li>
+    <li>Sorting algorithm — <a href="https://en.wikipedia.org/wiki/Sorting_algorithm">stable sort & 타이브레이킹</a></li>
+    <li>CQRS 용어를 만든 사람 — <a href="https://martinfowler.com/bliki/CQRS.html">Greg Young</a> (Fowler의 글에서 소개)</li>
+  </ul>
+</footer>
+
+<script>
+  // 목차 현재 위치 하이라이트 (가벼운 progressive enhancement)
+  const links = [...document.querySelectorAll('nav.toc a')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      const a = map.get(e.target.id);
+      if (a && e.isIntersecting) {
+        links.forEach(l => l.style.color = '');
+        a.style.color = 'var(--accent)';
+        a.style.fontWeight = '700';
+        links.forEach(l => { if (l !== a) l.style.fontWeight = ''; });
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>

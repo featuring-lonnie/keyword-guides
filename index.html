@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<title>금주의 키워드 — 주니어 개발자를 위한 안내서 모음</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-soft: #161b22;
+    --bg-card: #1a2029;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --text-faint: #6b7683;
+    --accent: #58a6ff;
+    --accent-2: #7ee787;
+    --cmd: #ff9e64;
+    --qry: #79c0ff;
+    --warn: #f0b429;
+    --danger: #f47067;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+    --maxw: 860px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f6f8fa;
+      --bg-card: #ffffff;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --text-dim: #57606a;
+      --text-faint: #8c959f;
+      --accent: #0969da;
+      --accent-2: #1a7f37;
+      --cmd: #bc4c00;
+      --qry: #0550ae;
+      --warn: #9a6700;
+      --danger: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(1200px 400px at 50% -50%, rgba(88,166,255,0.10), transparent);
+  }
+  .eyebrow {
+    font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 18px;
+    font-weight: 800; letter-spacing: -0.02em;
+  }
+  .lede { font-size: 19px; color: var(--text-dim); max-width: 680px; margin: 0; }
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .pill {
+    font-size: 13px; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  main { padding: 34px 0 60px; }
+  h2.sec {
+    font-size: clamp(22px, 4vw, 28px); font-weight: 800; letter-spacing: -0.02em;
+    margin: 0 0 4px;
+  }
+  .kicker { color: var(--text-dim); font-size: 15px; margin: 2px 0 22px; }
+  p { margin: 12px 0; }
+  strong { color: var(--text); font-weight: 700; }
+  a { color: var(--accent); }
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    padding: 1.5px 6px; border-radius: 6px; color: var(--accent-2);
+  }
+
+  .cards { display: grid; gap: 16px; margin: 24px 0 0; }
+  a.card {
+    display: block; text-decoration: none; color: inherit;
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px;
+    background: var(--bg-card); border-left: 4px solid var(--accent);
+    transition: border-color .15s ease, transform .15s ease, background .15s ease;
+  }
+  a.card:hover {
+    border-color: var(--accent); border-left-color: var(--accent);
+    transform: translateY(-2px); background: var(--bg-soft);
+  }
+  a.card .top {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 6px;
+  }
+  a.card .no {
+    font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--accent);
+    background: rgba(88,166,255,0.12); border-radius: 8px; padding: 2px 9px;
+  }
+  a.card .date { font-family: var(--mono); font-size: 12px; color: var(--text-faint); margin-left: auto; }
+  a.card h3 { font-size: 21px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  a.card .desc { font-size: 15px; color: var(--text-dim); margin: 8px 0 0; }
+  a.card .quote {
+    font-size: 14px; color: var(--text-faint); margin: 10px 0 0;
+    padding-left: 12px; border-left: 2px solid var(--border);
+  }
+  a.card .tags { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 12px; }
+  a.card .tag {
+    font-size: 12px; padding: 3px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--text-dim);
+  }
+
+  .box {
+    margin: 28px 0 0; padding: 16px 20px; border-radius: 12px;
+    border: 1px solid var(--border); border-left-width: 4px; background: var(--bg-card);
+    border-left-color: var(--accent-2);
+  }
+  .box .tag { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; color: var(--accent-2); }
+  .box p:last-child { margin-bottom: 0; }
+  .box ul { padding-left: 20px; margin: 8px 0 0; font-size: 15px; }
+  .box li { margin: 5px 0; }
+
+  footer { padding: 34px 0 60px; color: var(--text-faint); font-size: 14px; border-top: 1px solid var(--border); }
+
+  /* ===== 모바일 대응 (mobile) ===== */
+  html { -webkit-text-size-adjust: 100%; }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px; }
+    header.hero { padding: 48px 0 34px; }
+    h1 { font-size: clamp(25px, 7.2vw, 34px); }
+    .lede { font-size: 17px; }
+    .quote-hero { font-size: 15px; padding: 11px 15px; }
+    .pill { font-size: 12px; padding: 5px 11px; }
+    main { padding: 6px 0 56px; }
+    section { padding: 26px 0; }
+    h2.sec { font-size: clamp(21px, 5.6vw, 26px); }
+    h2.sec .num { font-size: 13px; padding: 2px 8px; margin-right: 9px; }
+    h3 { font-size: 18px; }
+
+    /* 긴 식별자(innodb_flush_log_at_trx_commit 등)가 표·문단을 밀어내지 않도록 */
+    /* 긴 토큰은 code 안에만 있으므로 줄바꿈 허용은 code로 한정한다.
+       셀 전체에 걸면 'PostgreSQL'이 글자 단위로 쪼개진다. */
+    code { overflow-wrap: anywhere; }
+    th, td { padding: 9px 10px; font-size: 14px; }
+    th { font-size: 12px; }
+    td code, th code { font-size: 0.82em; }
+
+    pre { padding: 14px 15px; }
+    pre, pre code { font-size: 13px; }
+    .diagram { font-size: 11px; padding: 15px; line-height: 1.45; }
+    .box { padding: 14px 16px; }
+    .tldr { padding: 17px 18px; }
+    .tldr p { font-size: 15px; }
+    .stat .big { font-size: 23px; }
+    .ladder li { padding: 13px 15px 13px 52px; }
+    .ladder li::before { left: 13px; top: 13px; width: 27px; height: 27px; font-size: 14px; }
+    nav.toc { padding: 18px 18px; margin: 26px 0; }
+    footer { padding: 30px 0 48px; }
+
+    /* index.html 카드 */
+    a.card { padding: 17px 18px; }
+    a.card h3 { font-size: 19px; }
+    a.card .date { margin-left: 0; width: 100%; order: 3; }
+    a.card .desc, a.card .quote { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
+    <h1>주니어 개발자를 위한<br>안내서 모음</h1>
+    <p class="lede">매주 하나의 키워드를 골라, 왜 그것이 존재하게 됐는지부터 우리 스택 어디에 숨어 있는지까지 한 편으로 끝내는 문서들. 각 편은 독립적이라 아무 순서로 읽어도 됩니다.</p>
+    <div class="meta-row">
+      <span class="pill">📚 5편</span>
+      <span class="pill">☕ 편당 ~20분</span>
+      <span class="pill">🐍 Python·Django 스택으로 연결</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <h2 class="sec">전체 목록</h2>
+  <p class="kicker">최신순</p>
+
+  <div class="cards">
+
+    <a class="card" href="wal-guide.html">
+      <div class="top">
+        <span class="no">05</span>
+        <h3>WAL — Write-Ahead Logging</h3>
+        <span class="date">2026-07-28</span>
+      </div>
+      <p class="desc">커밋 성공 응답을 받은 0.1초 뒤 전원이 뽑혔다. 데이터는 왜 살아남는가. 로그를 먼저 쓰는 순서 규약 하나가 복제·CDC·Kafka·이벤트 소싱까지 이어지는 경로를 따라간다.</p>
+      <p class="quote">💬 데이터의 무결성, 일관성 유지를 위한 쓰기 전략 — Git commit log부터 Kafka append-only log, 이벤트 소싱의 event log까지</p>
+      <div class="tags">
+        <span class="tag">🕰️ 1992 ARIES → Kafka</span>
+        <span class="tag">🐘 PostgreSQL 실무</span>
+        <span class="tag">⚠️ 복제 슬롯 함정</span>
+      </div>
+    </a>
+
+    <a class="card" href="consistent-hashing-guide.html">
+      <div class="top">
+        <span class="no">04</span>
+        <h3>안정 해싱 (Consistent Hashing Ring)</h3>
+        <span class="date">2026-07-20</span>
+      </div>
+      <p class="desc">캐시 서버가 3대에서 4대가 되는 순간 기존 키의 75%가 엉뚱한 서버를 가리킨다면? 서버 한 대 증설이 캐시 전체를 무효화하는 사고를 푸는 알고리즘.</p>
+      <p class="quote">💬 결정론적 알고리즘을 이용한 라우팅과 클러스터 환경에서의 수평확장성 확보</p>
+      <div class="tags">
+        <span class="tag">🕰️ 1997 MIT → Google Maglev</span>
+        <span class="tag">🐍 Python 60줄 구현</span>
+        <span class="tag">🔗 nginx·Redis 연결</span>
+      </div>
+    </a>
+
+    <a class="card" href="scheduler-cpu-guide.html">
+      <div class="top">
+        <span class="no">03</span>
+        <h3>스케줄러 (CPU)</h3>
+        <span class="date">2026-07-16</span>
+      </div>
+      <p class="desc">코어 하나는 한 번에 딱 하나의 일만 한다. 그런데 수백 개의 요청이 어떻게 "동시에" 처리되는가. 그 마법의 정체와, 그 마법이 왜 공짜가 아닌지.</p>
+      <p class="quote">💬 동시성, 비동기 실행은 공짜가 아닙니다.</p>
+      <div class="tags">
+        <span class="tag">🔢 실측 수치 포함</span>
+        <span class="tag">🐍 Python·Node 예제</span>
+      </div>
+    </a>
+
+    <a class="card" href="cgi-was-guide.html">
+      <div class="top">
+        <span class="no">02</span>
+        <h3>CGI — 웹서버와 WAS는 왜 갈라졌나</h3>
+        <span class="date">2026-07-16</span>
+      </div>
+      <p class="desc">nginx 뒤에 gunicorn, 그 뒤에 Django. 왜 서버가 두 겹일까. 답은 1993년의 발명품 CGI에서 시작한다. 30년 진화사를 따라가면 지금의 아키텍처가 "당연"해진다.</p>
+      <p class="quote">💬 WAS가 왜 필요하게 되었나? WAS와 webserver는 왜 다른 방향으로 진화했는가?</p>
+      <div class="tags">
+        <span class="tag">🕰️ 1991 → 현재 진화사</span>
+        <span class="tag">🐍 Django 스택 연결</span>
+      </div>
+    </a>
+
+    <a class="card" href="cqrs-deterministic-guide.html">
+      <div class="top">
+        <span class="no">01</span>
+        <h3>CQRS & 결정론적 알고리즘</h3>
+        <span class="date">2026-07-01</span>
+      </div>
+      <p class="desc">읽기와 쓰기를 나누는 법, 그리고 "같은 입력이면 항상 같은 결과"를 보장하는 법. 왜 필요한지부터 언제 쓰면 안 되는지까지.</p>
+      <div class="tags">
+        <span class="tag">🎯 실무 예제</span>
+        <span class="tag">⚠️ 안티패턴 경고</span>
+      </div>
+    </a>
+
+  </div>
+
+  <div class="box">
+    <span class="tag">✅ 이 시리즈의 원칙</span>
+    <ul>
+      <li><strong>독립성</strong> — 각 편은 다른 편을 읽지 않아도 완결된다. 필요한 개념은 그 자리에서 정의한다.</li>
+      <li><strong>정확성</strong> — 연도·수치·인물은 공식 문서와 원 논문으로 검증하고, 각 편 하단에 실제로 확인에 쓴 출처만 남긴다.</li>
+      <li><strong>주니어 눈높이</strong> — 전문 용어는 첫 등장 자리에서 한 문장으로 정의한다.</li>
+      <li><strong>실무 연결</strong> — 추상 이론에서 끝내지 않고 Python·Django·nginx·PostgreSQL로 번역한다.</li>
+    </ul>
+  </div>
+</main>
+
+<footer class="wrap">
+  <p>새 편은 <code>~/Study/keyword-guides/</code>에 <code>&lt;주제&gt;-guide.html</code>로 추가하고 이 목록에 카드를 넣는다.</p>
+</footer>
+
+</body>
+</html>

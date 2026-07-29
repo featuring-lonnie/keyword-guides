@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<title>안정 해싱(Consistent Hashing Ring) — 주니어 개발자를 위한 안내서</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-soft: #161b22;
+    --bg-card: #1a2029;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --text-faint: #6b7683;
+    --accent: #58a6ff;
+    --accent-2: #7ee787;
+    --cmd: #ff9e64;
+    --qry: #79c0ff;
+    --warn: #f0b429;
+    --danger: #f47067;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+    --maxw: 860px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f6f8fa;
+      --bg-card: #ffffff;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --text-dim: #57606a;
+      --text-faint: #8c959f;
+      --accent: #0969da;
+      --accent-2: #1a7f37;
+      --cmd: #bc4c00;
+      --qry: #0550ae;
+      --warn: #9a6700;
+      --danger: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(1200px 400px at 50% -50%, rgba(88,166,255,0.10), transparent);
+  }
+  .eyebrow {
+    font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 18px;
+    font-weight: 800; letter-spacing: -0.02em;
+  }
+  .lede { font-size: 19px; color: var(--text-dim); max-width: 680px; margin: 0; }
+  .quote-hero {
+    margin: 22px 0 0; padding: 12px 18px; border-left: 3px solid var(--accent);
+    background: var(--bg-soft); border-radius: 0 8px 8px 0; font-size: 16px; color: var(--text-dim);
+  }
+  .quote-hero strong { color: var(--text); }
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .pill {
+    font-size: 13px; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  nav.toc {
+    margin: 34px 0; padding: 22px 24px; background: var(--bg-soft);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  nav.toc h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-faint); margin: 0 0 14px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 34px; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  nav.toc li { margin: 5px 0; break-inside: avoid; }
+  nav.toc a { color: var(--text); text-decoration: none; font-size: 15px; }
+  nav.toc a:hover { color: var(--accent); }
+
+  main { padding: 10px 0 80px; }
+  section { padding: 34px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2.sec {
+    font-size: clamp(24px, 4vw, 32px); font-weight: 800; letter-spacing: -0.02em;
+    margin: 0 0 6px; scroll-margin-top: 20px;
+  }
+  h2.sec .num {
+    display: inline-block; font-family: var(--mono); font-size: 15px; color: var(--accent);
+    background: rgba(88,166,255,0.12); border-radius: 8px; padding: 2px 10px; margin-right: 12px;
+    vertical-align: middle; font-weight: 600;
+  }
+  h3 { font-size: 20px; font-weight: 700; margin: 30px 0 10px; letter-spacing: -0.01em; }
+  h4 { font-size: 16px; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+  p { margin: 12px 0; }
+  strong { color: var(--text); font-weight: 700; }
+  a { color: var(--accent); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 7px 0; }
+
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    padding: 1.5px 6px; border-radius: 6px; color: var(--accent-2);
+  }
+  pre {
+    background: #0b0e13; border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; margin: 16px 0; position: relative;
+    font-size: 14px; line-height: 1.6;
+  }
+  @media (prefers-color-scheme: light) { pre { background: #f6f8fa; } }
+  pre code { background: none; border: none; padding: 0; color: var(--text); font-size: 14px; }
+  .c-kw { color: #ff7b72; } .c-fn { color: #d2a8ff; } .c-str { color: #a5d6ff; }
+  .c-com { color: var(--text-faint); font-style: italic; } .c-num { color: #79c0ff; }
+  .c-ok { color: var(--accent-2); } .c-bad { color: var(--danger); }
+  @media (prefers-color-scheme: light) {
+    .c-kw { color: #cf222e; } .c-fn { color: #8250df; } .c-str { color: #0a3069; } .c-num { color: #0550ae; }
+  }
+  .code-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-faint); margin: 18px 0 -8px;
+  }
+
+  .box {
+    margin: 20px 0; padding: 16px 20px; border-radius: 12px;
+    border: 1px solid var(--border); border-left-width: 4px; background: var(--bg-card);
+  }
+  .box .tag { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+  .box p:first-of-type { margin-top: 4px; }
+  .box p:last-child { margin-bottom: 0; }
+  .box.tip { border-left-color: var(--accent-2); }
+  .box.tip .tag { color: var(--accent-2); }
+  .box.warn { border-left-color: var(--warn); }
+  .box.warn .tag { color: var(--warn); }
+  .box.danger { border-left-color: var(--danger); }
+  .box.danger .tag { color: var(--danger); }
+  .box.note { border-left-color: var(--accent); }
+  .box.note .tag { color: var(--accent); }
+  .box.analogy { border-left-color: #d2a8ff; }
+  .box.analogy .tag { color: #d2a8ff; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0; }
+  @media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+  .split .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--bg-card); }
+  .split .card.cmd { border-top: 3px solid var(--cmd); }
+  .split .card.qry { border-top: 3px solid var(--qry); }
+  .split .card h4 { margin-top: 0; font-size: 18px; }
+  .split .card.cmd h4 { color: var(--cmd); }
+  .split .card.qry h4 { color: var(--qry); }
+  .split .card ul { padding-left: 18px; margin: 8px 0 0; font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: none; }
+
+  .diagram {
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre;
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; overflow-x: auto; color: var(--text-dim); margin: 18px 0;
+  }
+  .kicker { color: var(--text-dim); font-size: 15px; margin: 2px 0 18px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 22px 0; }
+  @media (max-width: 640px) { .stat-row { grid-template-columns: 1fr; } }
+  .stat {
+    border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: var(--bg-card);
+  }
+  .stat .big { font-size: 26px; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+  .ladder { counter-reset: step; margin: 20px 0; padding: 0; list-style: none; }
+  .ladder li {
+    position: relative; padding: 14px 18px 14px 60px; margin: 12px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .ladder li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 16px; top: 14px; width: 30px; height: 30px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 15px;
+  }
+  .ladder li strong { display: block; margin-bottom: 3px; }
+
+  .timeline { margin: 20px 0; padding: 0; list-style: none; }
+  .timeline li {
+    position: relative; padding: 12px 18px 12px 110px; margin: 10px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .timeline li .yr {
+    position: absolute; left: 16px; top: 14px;
+    font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--accent);
+  }
+  .timeline li strong { display: block; margin-bottom: 2px; }
+  .timeline li span.desc { font-size: 15px; color: var(--text-dim); }
+  @media (max-width: 640px) {
+    .timeline li { padding-left: 18px; padding-top: 38px; }
+  }
+
+  footer { padding: 40px 0 60px; color: var(--text-faint); font-size: 14px; }
+  footer h3 { color: var(--text-dim); font-size: 15px; }
+  footer a { color: var(--text-dim); }
+  footer ul { padding-left: 20px; }
+
+  .tldr {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(126,231,135,0.06));
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin: 24px 0;
+  }
+  .tldr .tag { color: var(--accent); font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+  .tldr p { margin: 8px 0 0; font-size: 16px; }
+
+  /* ===== 모바일 대응 (mobile) ===== */
+  html { -webkit-text-size-adjust: 100%; }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px; }
+    header.hero { padding: 48px 0 34px; }
+    h1 { font-size: clamp(25px, 7.2vw, 34px); }
+    .lede { font-size: 17px; }
+    .quote-hero { font-size: 15px; padding: 11px 15px; }
+    .pill { font-size: 12px; padding: 5px 11px; }
+    main { padding: 6px 0 56px; }
+    section { padding: 26px 0; }
+    h2.sec { font-size: clamp(21px, 5.6vw, 26px); }
+    h2.sec .num { font-size: 13px; padding: 2px 8px; margin-right: 9px; }
+    h3 { font-size: 18px; }
+
+    /* 긴 식별자(innodb_flush_log_at_trx_commit 등)가 표·문단을 밀어내지 않도록 */
+    /* 긴 토큰은 code 안에만 있으므로 줄바꿈 허용은 code로 한정한다.
+       셀 전체에 걸면 'PostgreSQL'이 글자 단위로 쪼개진다. */
+    code { overflow-wrap: anywhere; }
+    th, td { padding: 9px 10px; font-size: 14px; }
+    th { font-size: 12px; }
+    td code, th code { font-size: 0.82em; }
+
+    pre { padding: 14px 15px; }
+    pre, pre code { font-size: 13px; }
+    .diagram { font-size: 11px; padding: 15px; line-height: 1.45; }
+    .box { padding: 14px 16px; }
+    .tldr { padding: 17px 18px; }
+    .tldr p { font-size: 15px; }
+    .stat .big { font-size: 23px; }
+    .ladder li { padding: 13px 15px 13px 52px; }
+    .ladder li::before { left: 13px; top: 13px; width: 27px; height: 27px; font-size: 14px; }
+    nav.toc { padding: 18px 18px; margin: 26px 0; }
+    footer { padding: 30px 0 48px; }
+
+    /* index.html 카드 */
+    a.card { padding: 17px 18px; }
+    a.card h3 { font-size: 19px; }
+    a.card .date { margin-left: 0; width: 100%; order: 3; }
+    a.card .desc, a.card .quote { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
+    <h1>안정 해싱<br>Consistent Hashing Ring</h1>
+    <p class="lede">캐시 서버가 3대에서 4대가 되는 순간, 기존 키의 75%가 엉뚱한 서버를 가리키게 된다면? 서버 한 대를 늘렸을 뿐인데 캐시 전체가 무효화되는 사고 — 안정 해싱은 이 문제를 풀기 위해 태어났습니다.</p>
+    <p class="quote-hero">💬 <strong>"결정론적 알고리즘을 이용한 라우팅과 클러스터 환경에서의 수평확장성 확보"</strong><br><span style="font-size:14px">— 이번 주 키워드를 제안하며 붙은 한 줄. 이 문서는 이 문장을 풀어내는 것이 목표입니다.</span></p>
+    <div class="meta-row">
+      <span class="pill">☕ 읽는 데 ~20분</span>
+      <span class="pill">🕰️ 1997 MIT 논문부터 Google Maglev까지</span>
+      <span class="pill">🐍 Python 구현 + nginx/Redis로 연결</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TOC ============ -->
+<div class="wrap">
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#intro">서버가 한 대 늘어나는 순간 생기는 일</a></li>
+      <li><a href="#modn">hash(key) % N은 왜 무너지는가</a></li>
+      <li><a href="#ring">해시 링 — 안정 해싱의 핵심 아이디어</a></li>
+      <li><a href="#deterministic">결정론적 라우팅 — 조회 없이 길을 찾는 법</a></li>
+      <li><a href="#vnode">가상 노드 — 불균형을 잡는 기술</a></li>
+      <li><a href="#scaling">수평 확장 시나리오 — 증설과 장애</a></li>
+      <li><a href="#code">Python으로 60줄 구현</a></li>
+      <li><a href="#evolution">진화와 변형 — Ring 이후의 알고리즘들</a></li>
+      <li><a href="#practice">우리 스택 어디에 숨어 있나</a></li>
+      <li><a href="#cheatsheet">한 장 요약 치트시트</a></li>
+    </ol>
+  </nav>
+</div>
+
+<main class="wrap">
+
+  <!-- ============ 00 ============ -->
+  <section id="intro">
+    <h2 class="sec"><span class="num">00</span>서버가 한 대 늘어나는 순간 생기는 일</h2>
+    <p class="kicker">트래픽이 늘어서 서버를 추가했더니, 오히려 장애가 났다</p>
+    <p>서비스가 커지면 데이터를 한 대의 서버에 다 담을 수 없게 됩니다. 그래서 캐시든 DB든 여러 대에 <strong>나눠 담기</strong> 시작하는데, 이때 즉시 부딪히는 질문이 있습니다.</p>
+    <p style="text-align:center;font-size:18px"><strong>"이 키(key)는 몇 번 서버에 저장하고, 읽을 때는 어떻게 같은 서버를 다시 찾아가지?"</strong></p>
+    <div class="box note">
+      <span class="tag">📎 용어: 샤딩(sharding) / 파티셔닝(partitioning)</span>
+      <p><strong>샤딩</strong> = 데이터를 여러 서버(노드)에 쪼개어 나눠 저장하는 것. 각 조각을 샤드(shard) 또는 파티션(partition)이라 부릅니다. "user:1~100만은 A서버, 100만~200만은 B서버"처럼 범위로 나눌 수도 있고, 이 문서의 주제처럼 해시로 나눌 수도 있습니다.</p>
+    </div>
+    <p>가장 먼저 떠오르는 답은 <code>hash(key) % 서버수</code>입니다. 간단하고, 빠르고, 균등하게 퍼집니다.</p>
+    <div class="box note">
+      <span class="tag">📎 용어: 해시 함수 — 이 문서 전체의 전제</span>
+      <p><strong>해시 함수</strong> = 임의의 문자열을 정해진 범위의 큰 정수로 바꿔주는 함수(예: <code>md5("user:42")</code> → 어떤 128비트 숫자). 우리가 기대는 성질은 딱 두 가지입니다. ① <strong>같은 입력이면 언제나 같은 출력</strong> — 그래서 저장할 때와 읽을 때 같은 서버를 찾아갈 수 있습니다. ② <strong>출력이 범위 전체에 고르게 흩어짐</strong> — 그래서 키가 특정 서버에 쏠리지 않습니다. 앞으로 나오는 모든 이야기는 이 두 성질 위에 서 있습니다.</p>
+    </div>
+    <p>그런데 <code>% 서버수</code> 방식에는 치명적인 약점이 하나 있습니다 — <strong>서버 수가 변하는 순간</strong> 거의 모든 키의 답이 바뀐다는 것. 그리고 클러스터(같은 일을 나눠 맡는 서버 묶음)에서 서버 수는 반드시 변합니다. 트래픽이 늘면 증설하고, 장비는 언젠가 죽으니까요.</p>
+    <div class="box note">
+      <span class="tag">이 문서가 답하는 것</span>
+      <p>① <code>hash % N</code>은 왜 확장에 취약한가 ② "해시 링"은 어떤 구조이고 왜 노드가 변해도 일부 키만 움직이는가 ③ 중앙 조회 서버 없이 모든 클라이언트가 같은 노드를 찾아가는 "결정론적 라우팅"은 어떻게 성립하는가. 다 읽으면 맨 위에 인용한 한 줄 — "결정론적 알고리즘을 이용한 라우팅과 수평확장성 확보" — 를 남에게 설명할 수 있게 됩니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 01 ============ -->
+  <section id="modn">
+    <h2 class="sec"><span class="num">01</span>hash(key) % N은 왜 무너지는가</h2>
+    <p class="kicker">나머지 연산의 배신 — 재배치 폭풍(rebalancing storm)</p>
+    <p>캐시 서버 3대(N=3)에 <code>hash(key) % 3</code>으로 키를 분배하고 있다고 합시다. 어느 날 트래픽이 늘어 4대로 늘렸습니다(N=4). 이제 모든 키는 <code>% 4</code>로 다시 계산됩니다.</p>
+    <div class="diagram">키의 해시값       % 3 (서버 3대)      % 4 (서버 4대)      결과
+──────────────────────────────────────────────────────────
+hash = 12   ──▶   서버 0        ──▶   서버 0            그대로 ✓
+hash = 13   ──▶   서버 1        ──▶   서버 1            그대로 ✓
+hash = 14   ──▶   서버 2        ──▶   서버 2            그대로 ✓
+hash = 15   ──▶   서버 0        ──▶   서버 3            이동! ✗
+hash = 16   ──▶   서버 1        ──▶   서버 0            이동! ✗
+hash = 17   ──▶   서버 2        ──▶   서버 1            이동! ✗
+hash = 18   ──▶   서버 0        ──▶   서버 2            이동! ✗
+   ⋮                                                  12개 중 3개만 생존</div>
+    <p>이유는 이렇습니다. N+1대가 된 뒤 키가 갈 수 있는 서버는 N+1곳이고, 그중 <em>우연히</em> 예전과 같은 곳일 확률은 대략 1/(N+1)입니다. 즉 서버를 N대에서 N+1대로 늘리면 <strong>제자리에 남는 키는 평균 1/(N+1)뿐</strong>입니다. 3대→4대면 75%가 이동하고, 10대→11대면 약 91%가 이동합니다. 서버를 <em>많이</em> 가진 큰 클러스터일수록 피해가 더 커지는, 확장에 정확히 역행하는 구조입니다.</p>
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰 — 문제는 해시가 아니라 "나머지"다</span>
+      <p>해시 함수 자체는 죄가 없습니다. 죄인은 <code>% N</code>입니다. 나머지 연산은 결과가 <strong>N에 종속</strong>되기 때문에, N이 1만 변해도 거의 모든 키의 목적지가 재추첨됩니다. 캐시라면 대량 캐시 미스(cache miss — 캐시에 없어서 원본 DB까지 가는 것)가 터져 DB가 트래픽을 정통으로 맞고, 데이터 저장소라면 노드 사이에 대규모 데이터 이사가 벌어집니다. 안정 해싱의 목표는 단 하나 — <strong>키의 목적지를 서버 "수"로부터 독립시키는 것</strong>입니다.</p>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><div class="big">1/(N+1)</div><div class="lbl">N대→N+1대 증설 후 제자리에 남는 키 비율</div></div>
+      <div class="stat"><div class="big">75%</div><div class="lbl">3대→4대 증설 시 이동하는 키 비율 (1 − 1/4)</div></div>
+      <div class="stat"><div class="big">~91%</div><div class="lbl">10대→11대 증설 시 이동하는 키 비율 — 클러스터가 클수록 피해가 커진다</div></div>
+    </div>
+  </section>
+
+  <!-- ============ 02 ============ -->
+  <section id="ring">
+    <h2 class="sec"><span class="num">02</span>해시 링 — 안정 해싱의 핵심 아이디어</h2>
+    <p class="kicker">서버 수로 나누지 말고, 서버와 키를 같은 공간에 놓아라</p>
+    <p>안정 해싱(consistent hashing)은 1997년 MIT의 David Karger 연구진이 논문 「Consistent Hashing and Random Trees」에서 제안했습니다. 웹 캐시 서버가 수시로 추가/제거되는 환경에서 재배치를 최소화하는 것이 목적이었고, 공저자 중 Daniel Lewin과 Tom Leighton은 이듬해(1998년) 이 기술을 상용화한 CDN 회사 <strong>Akamai</strong>를 공동 창업했습니다. (CDN = 사용자와 가까운 곳곳에 캐시 서버 — 엣지 서버 — 를 두고 콘텐츠를 대신 전달해 주는 서비스.) 아이디어는 두 단계입니다.</p>
+    <ol class="ladder">
+      <li><strong>1단계 — 해시 공간을 원(ring)으로 만든다</strong>해시 함수의 출력 범위(예: 0 ~ 2³²−1)를 시계처럼 둥글게 이어 붙입니다. 최댓값 다음은 다시 0입니다. 이 원 위의 "위치"는 서버 수와 아무 관계가 없습니다.</li>
+      <li><strong>2단계 — 서버도, 키도 같은 원 위에 올린다</strong>서버는 이름(예: <code>"10.0.1.5:6379"</code>)을 해시해 원 위의 한 점에 앉힙니다. 키도 해시해서 원 위의 한 점을 얻습니다. 키의 담당 서버는 <strong>키 위치에서 시계 방향으로 돌다가 처음 만나는 서버</strong>입니다.</li>
+    </ol>
+    <div class="diagram">                    0 (= 2³²) — 12시 방향
+                        ● 노드 A
+                 ┌──────┴──────┐
+            ┌────┘             └────┐
+          ┌─┘                        ✕ key "cart:77"
+          │                           ┐
+          │      시계 방향 ↻           ● 노드 B
+          │                           ┘
+          └─┐                        ✕ key "user:42"
+            └────┐             ┌────┘
+                 └──── ● ──────┘
+                    노드 C
+
+  규칙: 키 위치에서 시계 방향(↻)으로 이동 → 처음 만나는 노드가 담당
+    · "cart:77" 은 A를 막 지난 자리 → 시계 방향 첫 노드는 B  ⇒ B 담당
+    · "user:42" 는 B를 막 지난 자리 → 시계 방향 첫 노드는 C  ⇒ C 담당
+    · 노드 B가 죽으면? B가 맡던 구간(A~B)의 키만 다음 노드 C로 넘어간다.
+      user:42 를 비롯한 나머지 구간의 키는 담당이 그대로다.</div>
+    <p>이 구조에서 노드 하나가 사라지면 어떻게 될까요? 그 노드가 맡던 구간(호, arc)의 키들만 <strong>시계 방향 다음 노드</strong>로 넘어갑니다. 다른 구간의 키들은 자기 담당 노드가 그대로이므로 아무 영향이 없습니다. 노드가 추가될 때도 마찬가지로, 새 노드는 자기 앞 구간의 키만 이전 담당자에게서 가져옵니다. <strong>변화의 영향 반경이 "전체"에서 "이웃 구간 하나"로 줄어드는 것</strong> — 이것이 % N과의 결정적 차이입니다.</p>
+    <div class="box analogy">
+      <span class="tag">🍕 비유 — 원탁의 피자 나누기</span>
+      <p>원탁에 사람들이 띄엄띄엄 앉아 있고, 피자 조각(키)은 테이블 가장자리를 따라 놓여 있습니다. 규칙은 "각 조각은 시계 방향으로 가장 가까운 사람이 먹는다". 한 사람이 자리를 뜨면 그 사람 몫이던 조각만 옆 사람에게 넘어갈 뿐, 테이블 전체가 조각을 재분배하지는 않습니다. 새 사람이 끼어 앉으면 옆 사람 몫의 일부만 가져갑니다. (실제 구현은 이 직관에 더해, 다음 절의 "가상 노드"로 몫의 크기까지 고르게 맞춥니다.)</p>
+    </div>
+    <div class="box note">
+      <span class="tag">📎 용어: "consistent(안정/일관)"의 의미</span>
+      <p>여기서 consistent는 트랜잭션의 일관성(consistency — DB에서 커밋 전후로 데이터 규칙이 깨지지 않는다는 그 성질)과는 다른 뜻입니다. <strong>노드 집합이 조금 변해도 해시 결과(키→노드 매핑)가 거의 그대로 유지된다</strong>, 즉 매핑이 변화에 안정적이라는 의미입니다. 그래서 한국어로는 "안정 해시" 또는 "일관된 해싱"으로 옮깁니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 03 ============ -->
+  <section id="deterministic">
+    <h2 class="sec"><span class="num">03</span>결정론적 라우팅 — 조회 없이 길을 찾는 법</h2>
+    <p class="kicker">관통 질문 전반부: "결정론적 알고리즘을 이용한 라우팅"</p>
+    <div class="box note">
+      <span class="tag">📎 용어: 결정론적(deterministic)</span>
+      <p><strong>결정론적 알고리즘</strong> = 같은 입력을 넣으면 언제, 어디서, 누가 실행해도 항상 같은 출력이 나오는 알고리즘. 반대는 실행할 때마다 결과가 달라질 수 있는 비결정론적(예: 난수 기반 무작위 선택)입니다.</p>
+    </div>
+    <p>키가 어느 서버에 있는지 알아내는 방법은 크게 두 갈래입니다.</p>
+    <div class="split">
+      <div class="card cmd">
+        <h4>⚙️ 조회 방식 (디렉터리)</h4>
+        <p style="font-size:15px;margin:4px 0 0">"키→서버" 매핑표를 중앙 저장소에 두고 매번 물어본다</p>
+        <ul>
+          <li>매핑을 자유롭게 바꿀 수 있음 (유연)</li>
+          <li>대신 조회 서버가 <strong>병목이자 단일 장애점</strong>(SPOF — 이것 하나가 죽으면 전체가 마비되는 지점)</li>
+          <li>모든 요청에 조회 왕복 비용 추가</li>
+        </ul>
+      </div>
+      <div class="card qry">
+        <h4>🔍 계산 방식 (결정론적 해싱)</h4>
+        <p style="font-size:15px;margin:4px 0 0">키만 보고 <strong>수식으로 계산</strong>해서 서버를 알아낸다</p>
+        <ul>
+          <li>중앙 서버 불필요, 조회 왕복 0회</li>
+          <li>같은 해시 함수 + 같은 노드 목록만 공유하면 <strong>누가 계산해도 같은 답</strong></li>
+          <li>안정 해싱이 여기에 속함</li>
+        </ul>
+      </div>
+    </div>
+    <p>안정 해싱의 라우팅이 성립하는 조건은 단 두 가지입니다: ① 모두가 <strong>같은 해시 함수</strong>를 쓸 것 ② 모두가 <strong>같은 노드 목록</strong>(링 구성)을 알 것. 이 둘만 맞으면 애플리케이션 서버가 100대여도, 각자가 독립적으로 <code>ring.get_node("user:42")</code>를 계산해서 <strong>전원이 같은 서버에 도착</strong>합니다. 서로 합의하는 통신도, 중앙 코디네이터도 필요 없습니다. 이것이 "결정론적 알고리즘을 이용한 라우팅"의 실체입니다.</p>
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해 — "그럼 노드 목록은 누가 알려주나?"</span>
+      <p>키→노드 계산은 결정론적이지만, <strong>노드 목록 자체는 어딘가에서 관리되어야 합니다</strong>. 실무에서는 (a) 설정 파일에 박아두거나(nginx upstream), (b) 클라이언트 라이브러리에 서버 목록을 주거나(memcached), (c) 노드끼리 가십(gossip) 프로토콜 — 각 노드가 주기적으로 이웃과 "내가 아는 클러스터 상태"를 교환해 전체에 퍼뜨리는 방식 — 으로 동기화합니다(Dynamo·Cassandra·Redis Cluster — 각 제품은 뒤 절에서 다룹니다). 안정 해싱이 없애주는 것은 "키마다 물어보는 조회"이지, "클러스터 멤버십 관리"가 아닙니다.</p>
+    </div>
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각 — 왜 하필 해시인가</span>
+      <p>결정론만 필요하면 "user_id 범위로 나누기"도 결정론적입니다. 하지만 범위 분할은 인기 유저가 몰린 범위에 부하가 쏠립니다. 해시 함수는 입력을 출력 공간에 <strong>고르게 흩뿌리는</strong> 성질이 있어서, 결정론과 균등 분산을 동시에 얻습니다. 참고로 여기 쓰는 해시는 보안 목적이 아니라 분배 목적이라 <strong>암호학적 강도가 필요 없습니다</strong>. 이미 충돌 저항성이 깨졌지만 빠른 MD5나, 처음부터 비암호학적으로 설계된 MurmurHash·CRC 계열이면 충분합니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 04 ============ -->
+  <section id="vnode">
+    <h2 class="sec"><span class="num">04</span>가상 노드 — 불균형을 잡는 기술</h2>
+    <p class="kicker">노드 3개를 링에 그냥 올리면, 한 놈이 절반을 먹는다</p>
+    <p>02절의 링에는 함정이 있습니다. 노드를 해시해서 링에 앉히면 위치가 <strong>운에 따라</strong> 정해지므로, 어떤 노드는 넓은 구간을, 어떤 노드는 좁은 구간을 맡게 됩니다. 노드가 몇 개 없을수록 이 불균형은 심해지고, 특정 노드에 부하가 쏠리는 <strong>핫스팟(hot spot)</strong>이 생깁니다. 게다가 노드 하나가 죽으면 그 노드의 부하 <em>전부</em>가 시계 방향 다음 노드 한 대에 얹히는 것도 문제입니다.</p>
+    <p>해결책은 의외로 단순합니다. <strong>물리 노드 하나를 링 위의 여러 점으로 쪼개서 올리는 것</strong> — 이 점들을 가상 노드(virtual node, vnode) 또는 토큰(token)이라 부릅니다.</p>
+    <div class="diagram">가상 노드 없이 (물리 노드 3개)         가상 노드 적용 (노드당 4개씩 배치)
+
+        ●A                                  ●A ●B
+    ┌────┴────┐                         ┌────┴────┐
+  ┌─┘         └─┐                     ●C┘         └●A
+  │             │                     │             │
+  │             ●B                    ●B           ●C
+  │             │                     │             │
+  └─┐         ┌─┘                     ●A┐         ┌●B
+    └────●C───┘                         └──●C ●A──┘
+
+  A가 링의 절반을 독식 😰            구간이 잘게 섞여 A·B·C 몫이 비슷 🙂
+  A 죽으면 → B가 전부 인수          A 죽으면 → A의 조각들이 B와 C에 분산 인수</div>
+    <p>가상 노드는 세 가지를 한꺼번에 해결합니다.</p>
+    <ul>
+      <li><strong>균등화</strong> — 점을 많이 찍을수록, 운 좋게 넓은 구간과 운 나쁘게 좁은 구간이 <em>한 노드 안에서 서로 상쇄</em>되어 노드별 총합이 평균에 가까워집니다. 동전을 많이 던질수록 앞면 비율이 50%에 다가가는 것과 같은 원리입니다.</li>
+      <li><strong>장애 분산</strong> — 죽은 노드의 조각난 구간들이 여러 생존 노드에 <em>나눠서</em> 흡수됩니다. 한 대가 부하를 독박 쓰지 않습니다.</li>
+      <li><strong>이기종 장비 대응</strong> — 성능 좋은 서버에는 가상 노드를 더 많이 배정해 <strong>가중치</strong>를 줄 수 있습니다 (예: 신형 장비 200개, 구형 장비 100개).</li>
+    </ul>
+    <p>이 기법을 대규모로 증명한 것이 2007년 Amazon의 <strong>Dynamo 논문</strong>입니다. Amazon 내부의 키-값 저장소(Redis처럼 key로 넣고 key로 꺼내는 단순한 구조의 DB) Dynamo는 안정 해싱 링에 가상 노드(논문 용어로는 토큰)를 결합해 장바구니 데이터를 분산했고, 이 설계는 이후 Cassandra·Riak 같은 분산 DB의 원형이 되었습니다.</p>
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각 — 가상 노드 개수도 공짜가 아니다</span>
+      <p>Cassandra는 노드당 가상 노드 수를 <code>num_tokens</code> 설정으로 조절하는데, 기본값이 한때 256이었다가 <strong>4.0부터 16으로 내려갔습니다</strong>. 가상 노드가 많을수록 분포는 고와지지만, 링 메타데이터가 커지고 노드 간 복구·스트리밍 연산이 느려지는 비용이 있기 때문입니다(개선된 토큰 배치 알고리즘 덕에 적은 수로도 균형이 좋아진 것도 이유). "많을수록 좋다"가 아니라 트레이드오프라는 감각을 기억하세요.</p>
+    </div>
+  </section>
+
+  <!-- ============ 05 ============ -->
+  <section id="scaling">
+    <h2 class="sec"><span class="num">05</span>수평 확장 시나리오 — 증설과 장애</h2>
+    <p class="kicker">관통 질문 후반부: "클러스터 환경에서의 수평확장성 확보"</p>
+    <div class="box note">
+      <span class="tag">📎 용어: 수평 확장(scale-out) vs 수직 확장(scale-up)</span>
+      <p><strong>수직 확장</strong> = 서버 한 대를 더 좋은 장비로 키우는 것. 한계가 빨리 오고 비쌉니다. <strong>수평 확장</strong> = 평범한 서버를 여러 대 <em>추가</em>해서 처리량을 늘리는 것. 클러스터(같은 일을 나눠 하는 서버 묶음) 운영의 기본 전략이지만, "추가한 만큼 순증"이 되려면 <strong>추가 비용(재배치)이 작아야</strong> 합니다. 안정 해싱이 바로 그 조건을 만들어 줍니다.</p>
+    </div>
+    <h3>시나리오 A — 노드 증설</h3>
+    <p>노드 n대가 키 K개를 나눠 들고 있을 때 새 노드 D를 투입하면, D는 자신의 가상 노드들이 앉은 구간의 키만 기존 담당자들에게서 넘겨받습니다. 이동량은 <strong>평균 K/(n+1)개</strong>(= 전체 키를 늘어난 노드 수로 나눈 몫) — 새 노드가 맡아야 할 딱 그만큼만 움직입니다. % N 방식의 "거의 전부"와 비교하면, 노드가 많을수록 격차는 극적으로 벌어집니다.</p>
+    <div class="diagram">                「노드 D 추가」 시 이동량 비교 (키 100만 개, 10대 → 11대)
+
+  hash % N     ██████████████████████████████████████████████  ~91만 개 이동
+  안정 해싱    █████                                            ~9만 개 이동 (K/11)
+
+  이동한 키 = 캐시라면 miss, 저장소라면 네트워크로 실어 나를 데이터</div>
+    <h3>시나리오 B — 노드 장애</h3>
+    <p>노드가 죽으면 그 노드의 구간들이 링에서 사라지고, 각 구간의 키는 자동으로 시계 방향 다음 생존 노드로 라우팅됩니다. <strong>링 재구성 외에 별도의 재배치 계산이 필요 없고</strong>, 가상 노드 덕에 부하는 여러 노드로 분산 흡수됩니다. 죽은 노드가 복귀하면 다시 자기 구간만 되찾아 갑니다.</p>
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해 — "안정 해싱이면 데이터 유실도 막아주나?"</span>
+      <p>아닙니다. 안정 해싱은 <strong>"누가 담당인가"를 정하는 라우팅 규칙</strong>일 뿐, 죽은 노드에 있던 데이터를 살려내지는 못합니다. 캐시라면 miss 후 원본에서 다시 채우면 그만이지만, 저장소라면 같은 데이터를 여러 노드에 복사해 두는 <strong>복제(replication)</strong>가 별도로 필요합니다. 다만 이때도 링은 쓸모가 있습니다 — Dynamo처럼 "담당 노드에서 시계 방향으로 이어지는 몇 개 노드에 복사본을 둔다"는 식으로, 링이 복제본 위치를 정하는 기준 역할까지 해주기 때문입니다.</p>
+    </div>
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰 — 수평확장성의 본질은 "변화 비용의 상한"</span>
+      <p>수평확장성은 "서버를 더 꽂을 수 있다"가 아니라 <strong>"서버를 꽂고 뽑는 비용이 클러스터 크기에 비례해 커지지 않는다"</strong>입니다. 안정 해싱은 노드 1대의 변화가 건드리는 키를 "전체 키 ÷ 노드 수"만큼으로 묶어두므로, 클러스터가 커질수록 오히려 변화 1회의 상대적 충격이 줄어듭니다. 그래서 수십~수백 대 규모에서도 무중단 증설·축소(elastic scaling)가 성립합니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 06 ============ -->
+  <section id="code">
+    <h2 class="sec"><span class="num">06</span>Python으로 60줄 구현</h2>
+    <p class="kicker">개념은 링, 자료구조는 "정렬된 리스트 + 이진 탐색"</p>
+    <p>"원"이라는 그림을 코드로 옮기면 의외로 평범합니다. 가상 노드들의 해시값을 <strong>정렬된 리스트</strong>로 들고, 키 해시보다 큰 첫 값을 찾으면 그것이 "시계 방향 첫 노드"입니다. 링을 0부터 시계 방향으로 쭉 펼쳐 일렬로 세운 것이 바로 이 정렬된 리스트이므로, <strong>리스트에서 "오른쪽" = 링에서 "시계 방향"</strong>이 됩니다. 리스트 끝을 넘어가면 인덱스를 0으로 되돌리면(wrap-around) 원이 완성됩니다.</p>
+    <p>탐색에는 파이썬 표준 라이브러리 <code>bisect</code>를 씁니다. <code>bisect_right(keys, h)</code>는 <strong>정렬된 리스트에서 h보다 큰 첫 원소의 인덱스</strong>를 이진 탐색으로 돌려주는데, 이것이 정확히 우리가 원하는 "시계 방향으로 처음 만나는 가상 노드"입니다.</p>
+    <p class="code-label">❌ 나쁜 예 — hash % N: 노드 목록이 변하면 매핑이 전면 재추첨</p>
+<pre><code><span class="c-kw">def</span> <span class="c-fn">get_node</span>(key: str, nodes: list[str]) -&gt; str:
+    <span class="c-com"># len(nodes)가 3→4가 되는 순간 기존 키의 75%가 다른 노드를 가리킴</span>
+    <span class="c-com"># 주의: 파이썬 내장 hash()는 프로세스마다 달라질 수 있음(PYTHONHASHSEED)</span>
+    <span class="c-com">#       → 서버끼리 결과가 어긋나므로 md5처럼 고정된 해시를 써야 함</span>
+    idx = int(hashlib.md5(key.encode()).hexdigest(), <span class="c-num">16</span>) % <span class="c-bad">len(nodes)</span>
+    <span class="c-kw">return</span> nodes[idx]</code></pre>
+    <p class="code-label">✅ 좋은 예 — 해시 링 + 가상 노드</p>
+<pre><code><span class="c-kw">import</span> bisect, hashlib
+
+<span class="c-kw">def</span> <span class="c-fn">_hash</span>(s: str) -&gt; int:
+    <span class="c-com"># 결정론적: 어떤 서버/프로세스에서 실행해도 같은 입력 → 같은 출력</span>
+    <span class="c-com"># md5는 128비트라 링 범위가 0~2¹²⁸이지만 원리는 동일 —</span>
+    <span class="c-com"># 범위가 얼마든 "정렬 + 끝에서 처음으로 감기"면 그게 링이다</span>
+    <span class="c-kw">return</span> int(hashlib.md5(s.encode()).hexdigest(), <span class="c-num">16</span>)
+
+<span class="c-kw">class</span> <span class="c-fn">HashRing</span>:
+    <span class="c-kw">def</span> <span class="c-fn">__init__</span>(self, nodes: list[str], vnodes: int = <span class="c-num">100</span>):
+        self._vnodes = vnodes
+        self._ring = sorted(
+            (_hash(<span class="c-str">f"{node}#{i}"</span>), node)      <span class="c-com"># 가상 노드: 노드당 vnodes개의 점</span>
+            <span class="c-kw">for</span> node <span class="c-kw">in</span> nodes
+            <span class="c-kw">for</span> i <span class="c-kw">in</span> range(vnodes)
+        )
+        self._keys = [h <span class="c-kw">for</span> h, _ <span class="c-kw">in</span> self._ring]
+
+    <span class="c-kw">def</span> <span class="c-fn">get_node</span>(self, key: str) -&gt; str:
+        <span class="c-com"># 키 위치에서 "시계 방향 첫 가상 노드"를 이진 탐색 — O(log V)</span>
+        idx = bisect.bisect_right(self._keys, _hash(key))
+        <span class="c-kw">if</span> idx == len(self._ring):
+            idx = <span class="c-num">0</span>                          <span class="c-com"># 링 끝을 넘으면 처음으로 (wrap-around)</span>
+        <span class="c-kw">return</span> self._ring[idx][<span class="c-num">1</span>]
+
+    <span class="c-kw">def</span> <span class="c-fn">add_node</span>(self, node: str) -&gt; <span class="c-str">"HashRing"</span>:
+        <span class="c-com"># 새 링을 만들어 반환 (기존 링은 불변) — 조회 중인 코드와의 경합 없음</span>
+        <span class="c-com"># 주의: 이 단순 구현은 모든 노드의 vnode 수가 같다고 가정한다.</span>
+        <span class="c-com">#      노드마다 가중치를 다르게 주려면 노드별 vnode 수를 따로 들고 있어야 한다</span>
+        current = sorted({n <span class="c-kw">for</span> _, n <span class="c-kw">in</span> self._ring} | {node})
+        <span class="c-kw">return</span> HashRing(current, self._vnodes)
+
+
+ring = HashRing([<span class="c-str">"cache-a"</span>, <span class="c-str">"cache-b"</span>, <span class="c-str">"cache-c"</span>])
+ring.get_node(<span class="c-str">"user:42"</span>)     <span class="c-com"># 몇 번을 불러도, 어느 서버에서 불러도 같은 답</span></code></pre>
+    <p>이진 탐색은 후보를 매번 절반으로 줄이므로, 조회 비용은 가상 노드 총 개수 V에 대해 <strong>O(log V)</strong>입니다. 노드 100대 × 가상 노드 100개 = 10,000개여도 10,000을 2로 몇 번 나눠야 1이 되는가, 즉 약 14회 비교면 끝납니다 — 사실상 공짜입니다.</p>
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각 — 직접 구현보다 검증된 구현을</span>
+      <p>위 코드는 원리 이해용입니다. 실무에서는 라이브러리·미들웨어에 이미 들어 있는 구현을 쓰는 것이 기본입니다: Python이면 <code>uhashring</code>, memcached 클라이언트의 ketama 옵션(ketama = 안정 해싱 구현의 사실상 표준이 된 라이브러리), nginx의 <code>hash ... consistent</code> 등. 특히 <strong>클라이언트마다 해시 구현이 다르면 결정론이 깨져서</strong> 같은 키가 서버마다 다른 노드로 가는 사고가 나므로, 한 시스템 안에서는 반드시 같은 구현을 공유해야 합니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 07 ============ -->
+  <section id="evolution">
+    <h2 class="sec"><span class="num">07</span>진화와 변형 — Ring 이후의 알고리즘들</h2>
+    <p class="kicker">링은 시작이었을 뿐, "적게 움직이는 결정론적 분배"는 하나의 계보가 되었다</p>
+    <ol class="timeline" style="list-style:none;padding:0">
+      <li><span class="yr">1997</span><strong>안정 해싱 논문 (Karger 외, MIT)</strong><span class="desc">해시 링 개념 제안. 웹 캐시 서버가 수시로 추가·제거되는 환경의 핫스팟 문제가 동기였다.</span></li>
+      <li><span class="yr">2007</span><strong>libketama & Dynamo 논문</strong><span class="desc">last.fm이 memcached용 안정 해싱 라이브러리 ketama를 공개해 캐시 업계의 사실상 표준이 됨. 같은 해 Amazon이 Dynamo 논문으로 가상 노드와 복제를 결합한 저장소 설계를 공개.</span></li>
+      <li><span class="yr">이후</span><strong>변형 알고리즘들 — 같은 목표, 다른 트레이드오프</strong><span class="desc">링 없이 "키와 노드를 함께 해시한 점수가 가장 높은 노드"를 고르는 랑데부 해싱, 링 자료구조를 아예 없애고 계산만으로 답을 내는 Google의 Jump Hash(2014), 룩업 표를 미리 만들어 조회를 O(1)로 만든 Google의 Maglev(2016) 등. 메모리·조회 속도·유연성 중 무엇을 살릴지에 따라 갈립니다.</span></li>
+    </ol>
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해 — "Redis Cluster도 안정 해싱이겠지?"</span>
+      <p>아닙니다. Redis Cluster는 공식 문서가 명시하듯 안정 해싱을 쓰지 않고, <strong>해시 슬롯(hash slot)</strong> 방식을 씁니다: 키를 <code>CRC16(key) mod 16384</code>로 16,384개 슬롯 중 하나에 결정론적으로 배정하고, "슬롯→노드" 할당표를 노드들이 관리합니다. 증설 시에는 <strong>슬롯 단위로</strong> 소유권을 옮기므로 재배치가 최소화됩니다. "% N이잖아?"라고 생각할 수 있지만, 나누는 수가 노드 수가 아니라 <strong>고정된 16384</strong>라서 노드가 변해도 키→슬롯 매핑은 절대 변하지 않습니다 — 움직이는 것은 슬롯의 소유권뿐. "고정된 중간 단위 + 소유권 이동"이라는, 같은 문제에 대한 또 다른 해법입니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 08 ============ -->
+  <section id="practice">
+    <h2 class="sec"><span class="num">08</span>우리 스택 어디에 숨어 있나</h2>
+    <p class="kicker">Django/nginx/Redis를 쓰는 팀이 실제로 마주치는 지점</p>
+    <table>
+      <thead><tr><th>지점</th><th>어떻게 쓰이나</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>nginx 업스트림</strong></td>
+          <td><code>upstream</code> 블록에 <code>hash $request_uri consistent;</code>라고 쓰면 ketama 방식 안정 해싱으로 백엔드를 고릅니다. 같은 URI는 늘 같은 백엔드로 가므로 백엔드 로컬 캐시 적중률이 오르고, 백엔드가 죽어도 그 몫의 URI만 재배치됩니다.</td>
+        </tr>
+        <tr>
+          <td><strong>memcached 클라이언트</strong></td>
+          <td>여러 memcached 서버를 쓸 때 클라이언트 라이브러리가 ketama 링으로 키를 분배합니다. 서버 목록에 한 대를 추가해도 대량 캐시 미스가 나지 않는 이유입니다.</td>
+        </tr>
+        <tr>
+          <td><strong>Redis Cluster</strong></td>
+          <td>07절에서 본 해시 슬롯 방식입니다. 알고리즘은 링과 다르지만, 애플리케이션 입장에서 얻는 효용은 같습니다 — "노드를 늘려도 전면 재배치 없이 슬롯 단위로만 이사한다".</td>
+        </tr>
+        <tr>
+          <td><strong>DB 샤딩 설계</strong></td>
+          <td>PostgreSQL을 수평 분할할 때 "무엇으로 나눌 것인가"의 선택지가 바로 이 문서의 내용입니다. <code>% N</code>으로 시작하면 첫 증설 때 전체 재배치라는 청구서가 날아옵니다 — 처음부터 링 또는 고정 슬롯(예: 슬롯 1024개를 만들어 노드에 배정)으로 설계하는 것이 안전합니다.</td>
+        </tr>
+        <tr>
+          <td><strong>CDN / 로드밸런서</strong></td>
+          <td>Akamai 이래 CDN 엣지 캐시 선택, Google Maglev 같은 L4 로드밸런서(패킷의 IP·포트만 보고 서버를 고르는 로드밸런서)의 커넥션 분배가 모두 이 계보입니다. "같은 클라이언트/URL은 되도록 같은 곳으로"가 필요한 모든 곳에 있습니다.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각 — 언제 꺼내 들 카드인가</span>
+      <p>판단 기준은 간단합니다: <strong>"키로 노드를 고르는 구조인가?" + "노드 집합이 변할 수 있는가?"</strong> 둘 다 예라면 % N 대신 안정 해싱(또는 고정 슬롯)을 검토하세요. 반대로 노드(또는 파티션) 수가 처음부터 고정이라면 % N도 충분히 훌륭합니다 — 도구는 문제에 맞을 때만 씁니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 09 치트시트 ============ -->
+  <section id="cheatsheet">
+    <h2 class="sec"><span class="num">09</span>한 장 요약 치트시트</h2>
+    <div class="tldr">
+      <span class="tag">💬 "결정론적 알고리즘을 이용한 라우팅"이란?</span>
+      <p><strong>중앙 조회 서버 없이, 키를 해시하는 계산만으로 담당 노드를 알아내는 것.</strong> 같은 해시 함수와 같은 링 구성을 공유하는 한, 어떤 클라이언트가 계산해도 같은 키는 같은 노드로 간다. 조회 왕복도, 단일 장애점도 없다.</p>
+    </div>
+    <div class="tldr">
+      <span class="tag">💬 "클러스터 환경에서의 수평확장성 확보"란?</span>
+      <p><strong>노드를 추가/제거할 때 이동하는 키를 "변화 후 노드 수로 나눈 몫"(키 K개·노드 n대면 대략 K/n)만큼으로 묶어두는 것.</strong> <code>hash % N</code>은 노드 1대 변화에 거의 모든 키가 재배치되어 클러스터가 클수록 증설 비용이 커지지만, 해시 링에서는 이웃 구간만 움직이므로 무중단 증설·축소가 성립한다. 이것이 링 구조가 수평확장성을 "확보"해 주는 메커니즘이다.</p>
+    </div>
+    <table>
+      <thead><tr><th>기억할 것</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>링의 규칙</td><td>노드와 키를 같은 해시 공간(원) 위에 놓고, 키에서 시계 방향 첫 노드가 담당. 노드가 변해도 이웃 구간만 영향받는다</td></tr>
+        <tr><td>가상 노드</td><td>물리 노드 1개를 링 위 여러 점으로 → 균등화 + 장애 시 부하 분산 + 가중치. 개수는 트레이드오프 (Cassandra 기본값 256→16)</td></tr>
+        <tr><td>결정론의 조건</td><td>같은 해시 함수 + 같은 노드 목록. 멤버십 관리(설정/가십)는 별도로 필요</td></tr>
+        <tr><td>안정 해싱 ≠ 복제</td><td>라우팅 규칙일 뿐, 데이터 보존은 복제(replication)가 담당</td></tr>
+        <tr><td>변형들</td><td>랑데부(링 없이 점수 비교) · Jump(메모리 0, 고정 샤드용) · Maglev(O(1) 룩업) · Redis 해시 슬롯(고정 16384 + 소유권 이동)</td></tr>
+        <tr><td>실무 접점</td><td>nginx <code>hash ... consistent</code> · memcached ketama · Redis Cluster · DB 샤딩 설계 · CDN</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="wrap">
+  <h3>더 읽어보기 (출처)</h3>
+  <ul>
+    <li>Karger et al. (1997) — <a href="https://www.semanticscholar.org/paper/02bb762c3bd1b3d1ad788340d8e9cdc3d85f33e1">Consistent Hashing and Random Trees (STOC '97)</a> (안정 해싱 원 논문, 저자·연도·Akamai 배경 검증)</li>
+    <li>Wikipedia — <a href="https://en.wikipedia.org/wiki/Consistent_hashing">Consistent hashing</a> (역사·K/n 재배치 성질 검증)</li>
+    <li>DeCandia et al. (2007) — <a href="https://www.allthingsdistributed.com/files/amazon-dynamo-sosp2007.pdf">Dynamo: Amazon's Highly Available Key-value Store</a> (가상 노드/토큰, preference list 복제 검증)</li>
+    <li>Redis 공식 문서 — <a href="https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/">Redis Cluster Specification</a> (해시 슬롯 16384 = CRC16 mod 16384, "안정 해싱 아님" 명시 검증)</li>
+    <li>Lamping &amp; Veach (2014) — <a href="https://arxiv.org/pdf/1406.2294">A Fast, Minimal Memory, Consistent Hash Algorithm</a> (Jump Consistent Hash 검증)</li>
+    <li>Damian Gryski — <a href="https://dgryski.medium.com/consistent-hashing-algorithmic-tradeoffs-ef6b8e2fcae8">Consistent Hashing: Algorithmic Tradeoffs</a> (랑데부·Jump·Maglev 계보와 트레이드오프 검증)</li>
+    <li>The Last Pickle — <a href="https://thelastpickle.com/blog/2021/01/29/impacts-of-changing-the-number-of-vnodes.html">Impacts of Changing the Number of vnodes</a> + <a href="https://issues.apache.org/jira/browse/CASSANDRA-15521">CASSANDRA-15521</a> (num_tokens 기본값 256→16 검증)</li>
+  </ul>
+</footer>
+
+<!-- TOC 현재 위치 하이라이트 -->
+<script>
+  const links = [...document.querySelectorAll('nav.toc a')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      const a = map.get(e.target.id);
+      if (a && e.isIntersecting) {
+        links.forEach(l => { l.style.color = ''; l.style.fontWeight = ''; });
+        a.style.color = 'var(--accent)';
+        a.style.fontWeight = '700';
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>
