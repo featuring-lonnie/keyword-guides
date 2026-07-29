@@ -268,6 +268,18 @@
     a.card .date { margin-left: 0; width: 100%; order: 3; }
     a.card .desc, a.card .quote { font-size: 14px; }
   }
+
+  /* ===== 목록 back-link ===== */
+  .backlink {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    color: var(--text-dim); margin-bottom: 20px;
+    padding: 5px 12px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft);
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .backlink:hover { color: var(--accent); border-color: var(--accent); }
+  footer .backlink { margin: 26px 0 0; }
 </style>
 </head>
 <body>
@@ -275,12 +287,13 @@
 <!-- ============ HERO ============ -->
 <header class="hero">
   <div class="wrap">
+    <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
     <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
     <h1>안정 해싱<br>Consistent Hashing Ring</h1>
     <p class="lede">캐시 서버가 3대에서 4대가 되는 순간, 기존 키의 75%가 엉뚱한 서버를 가리키게 된다면? 서버 한 대를 늘렸을 뿐인데 캐시 전체가 무효화되는 사고 — 안정 해싱은 이 문제를 풀기 위해 태어났습니다.</p>
     <p class="quote-hero">💬 <strong>"결정론적 알고리즘을 이용한 라우팅과 클러스터 환경에서의 수평확장성 확보"</strong><br><span style="font-size:14px">— 이번 주 키워드를 제안하며 붙은 한 줄. 이 문서는 이 문장을 풀어내는 것이 목표입니다.</span></p>
     <div class="meta-row">
-      <span class="pill">☕ 읽는 데 ~20분</span>
+      <span class="pill">☕ 읽는 데 ~30분</span>
       <span class="pill">🕰️ 1997 MIT 논문부터 Google Maglev까지</span>
       <span class="pill">🐍 Python 구현 + nginx/Redis로 연결</span>
     </div>
@@ -639,6 +652,7 @@ ring.get_node(<span class="c-str">"user:42"</span>)     <span class="c-com"># �
     <li>Damian Gryski — <a href="https://dgryski.medium.com/consistent-hashing-algorithmic-tradeoffs-ef6b8e2fcae8">Consistent Hashing: Algorithmic Tradeoffs</a> (랑데부·Jump·Maglev 계보와 트레이드오프 검증)</li>
     <li>The Last Pickle — <a href="https://thelastpickle.com/blog/2021/01/29/impacts-of-changing-the-number-of-vnodes.html">Impacts of Changing the Number of vnodes</a> + <a href="https://issues.apache.org/jira/browse/CASSANDRA-15521">CASSANDRA-15521</a> (num_tokens 기본값 256→16 검증)</li>
   </ul>
+  <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
 </footer>
 
 <!-- TOC 현재 위치 하이라이트 -->

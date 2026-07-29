@@ -249,17 +249,30 @@
     a.card .date { margin-left: 0; width: 100%; order: 3; }
     a.card .desc, a.card .quote { font-size: 14px; }
   }
+
+  /* ===== 목록 back-link ===== */
+  .backlink {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    color: var(--text-dim); margin-bottom: 20px;
+    padding: 5px 12px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft);
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .backlink:hover { color: var(--accent); border-color: var(--accent); }
+  footer .backlink { margin: 26px 0 0; }
 </style>
 </head>
 <body>
 
 <header class="hero">
   <div class="wrap">
+    <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
     <div class="eyebrow">Backend Fundamentals · 주니어 개발자용</div>
     <h1>CQRS와 결정론적 알고리즘</h1>
     <p class="lede">읽기와 쓰기를 나누는 법, 그리고 "같은 입력이면 항상 같은 결과"를 보장하는 법. 두 개념을 예제 중심으로, 왜 필요한지부터 언제 쓰면 안 되는지까지 정리했습니다.</p>
     <div class="meta-row">
-      <span class="pill">☕ 읽는 데 ~20분</span>
+      <span class="pill">☕ 읽는 데 ~25분</span>
       <span class="pill">🎯 실무 예제 포함</span>
       <span class="pill">⚠️ 안티패턴 경고 포함</span>
     </div>
@@ -699,6 +712,7 @@ ranked = <span class="c-fn">sorted</span>(
     <li>Sorting algorithm — <a href="https://en.wikipedia.org/wiki/Sorting_algorithm">stable sort & 타이브레이킹</a></li>
     <li>CQRS 용어를 만든 사람 — <a href="https://martinfowler.com/bliki/CQRS.html">Greg Young</a> (Fowler의 글에서 소개)</li>
   </ul>
+  <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
 </footer>
 
 <script>

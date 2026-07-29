@@ -239,18 +239,31 @@
     a.card .date { margin-left: 0; width: 100%; order: 3; }
     a.card .desc, a.card .quote { font-size: 14px; }
   }
+
+  /* ===== 목록 back-link ===== */
+  .backlink {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    color: var(--text-dim); margin-bottom: 20px;
+    padding: 5px 12px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft);
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .backlink:hover { color: var(--accent); border-color: var(--accent); }
+  footer .backlink { margin: 26px 0 0; }
 </style>
 </head>
 <body>
 
 <header class="hero">
   <div class="wrap">
+    <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
     <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
     <h1>스케줄러 (CPU)</h1>
     <p class="lede">코어 하나는 한 번에 딱 하나의 일만 합니다. 그런데 어떻게 수백 개의 요청이 "동시에" 처리될까요? 그 마법의 정체와, 그 마법이 왜 공짜가 아닌지를 예제로 풀었습니다.</p>
     <p class="quote-hero">💬 <strong>"동시성, 비동기 실행은 공짜가 아닙니다."</strong></p>
     <div class="meta-row">
-      <span class="pill">☕ 읽는 데 ~20분</span>
+      <span class="pill">☕ 읽는 데 ~15분</span>
       <span class="pill">🔢 실측 수치 포함</span>
       <span class="pill">🐍 Python·Node 예제</span>
     </div>
@@ -543,6 +556,7 @@ a, b, c = <span class="c-kw">await</span> asyncio.<span class="c-fn">gather</spa
     <li>Opensource.com — <a href="https://opensource.com/article/19/2/fair-scheduling-linux">CFS: Completely fair process scheduling in Linux</a> (리눅스 기본 스케줄러)</li>
     <li>Python 공식 문서 — <a href="https://docs.python.org/3/library/asyncio.html">asyncio</a> · <a href="https://docs.python.org/3/glossary.html#term-global-interpreter-lock">GIL 용어집</a></li>
   </ul>
+  <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
 </footer>
 
 <script>

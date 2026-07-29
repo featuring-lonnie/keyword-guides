@@ -268,6 +268,18 @@
     a.card .date { margin-left: 0; width: 100%; order: 3; }
     a.card .desc, a.card .quote { font-size: 14px; }
   }
+
+  /* ===== 목록 back-link ===== */
+  .backlink {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    color: var(--text-dim); margin-bottom: 20px;
+    padding: 5px 12px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft);
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .backlink:hover { color: var(--accent); border-color: var(--accent); }
+  footer .backlink { margin: 26px 0 0; }
 </style>
 </head>
 <body>
@@ -275,12 +287,13 @@
 <!-- ============ HERO ============ -->
 <header class="hero">
   <div class="wrap">
+    <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
     <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
     <h1>WAL — Write-Ahead Logging<br>왜 모든 시스템은 로그를 먼저 쓰는가</h1>
     <p class="lede">커밋이 성공했다는 응답을 받았다. 0.1초 뒤 서버의 전원이 뽑혔다. 그 데이터는 살아있을까? 살아있다면, DB는 대체 무엇을 믿고 "성공"이라고 대답한 걸까? 그 답이 WAL이다.</p>
     <p class="quote-hero">💬 <strong>"금주의 키워드 : WAL — 데이터의 무결성, 일관성 유지를 위한 쓰기 전략. Git의 commit log부터 Kafka의 append-only log, 이벤트 소싱의 event log까지"</strong></p>
     <div class="meta-row">
-      <span class="pill">☕ 읽는 데 ~20분</span>
+      <span class="pill">☕ 읽는 데 ~40분</span>
       <span class="pill">🕰️ 1992 ARIES 논문부터 Kafka·이벤트 소싱까지</span>
       <span class="pill">🐘 PostgreSQL·Django 스택으로 연결</span>
     </div>
@@ -299,8 +312,8 @@
       <li><a href="#recovery">크래시 복구는 어떻게 일어나는가</a></li>
       <li><a href="#dial">내구성은 스위치가 아니라 다이얼</a></li>
       <li><a href="#postgres">pg_wal에서 실제로 벌어지는 일</a></li>
-      <li><a href="#log-as-truth">로그가 부산물에서 원본이 되는 순간</a></li>
-      <li><a href="#zoo">같은 패턴 도감 — Git·Redis·RocksDB·SQLite</a></li>
+      <li><a href="#log-as-truth">로그가 원본이 되는 순간 — Kafka·이벤트 소싱·Git</a></li>
+      <li><a href="#zoo">같은 패턴 도감 — RocksDB·Redis·SQLite</a></li>
       <li><a href="#cheatsheet">한 장 요약 치트시트</a></li>
     </ol>
   </nav>
@@ -624,8 +637,8 @@
 
   <!-- ============ 07 ============ -->
   <section id="log-as-truth">
-    <h2 class="sec"><span class="num">07</span>로그가 부산물에서 원본이 되는 순간</h2>
-    <p class="kicker">여기서부터 Kafka와 이벤트 소싱이 시작된다</p>
+    <h2 class="sec"><span class="num">07</span>로그가 원본이 되는 순간 — Kafka·이벤트 소싱·Git</h2>
+    <p class="kicker">Kafka·이벤트 소싱·Git이 여기서 만난다</p>
 
     <p>지금까지 WAL은 "데이터 파일을 지키기 위한 보조 장치"였다. 그런데 누군가 이런 생각을 한다. <strong>로그만 있으면 데이터 파일을 언제든 다시 만들 수 있다면, 진짜 원본은 로그 아닌가?</strong></p>
 
@@ -675,11 +688,42 @@ kafka_producer.<span class="c-fn">send</span>(<span class="c-str">"orders"</span
 <span class="c-com"># (소비자 쪽은 중복 수신에 대비해 멱등하게 처리해야 한다)</span></code></pre>
 
     <p><code>OutboxEvent</code> 테이블이 하는 일이 바로 WAL이다. 다만 계층이 DB 내부에서 애플리케이션으로 올라왔을 뿐이다.</p>
+
+    <p>여기까지가 <strong>로그를 원본으로 승격시킨</strong> 계열이다. 마지막으로, 같은 목표에 <strong>정반대 수단</strong>으로 도달한 사례를 보자 — Slack 코멘트가 가장 먼저 언급한 Git이다.</p>
+
+    <h3>Git — 같은 목표, 다른 수단</h3>
+    <p>Slack 코멘트가 Git의 commit log를 나란히 놓은 것은 정확한 직관이다. 다만 <strong>Git은 WAL 프로토콜을 쓰지 않는다</strong>. 목표는 같지만 수단이 다르므로, 여기는 정확히 구분하는 편이 낫다.</p>
+
+    <table>
+      <thead><tr><th>Git의 요소</th><th>정체</th><th>WAL과의 관계</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>커밋 히스토리</td>
+          <td>불변 객체들의 append-only DAG(방향 비순환 그래프 — 각 커밋이 부모를 가리키기만 하고 되돌아오지 않는 구조). 새 커밋은 기존 객체를 <strong>수정하지 않고 추가</strong>한다. <code>--amend</code>조차 새 커밋을 만들고 참조만 옮기는 것이다</td>
+          <td><strong>append-only + 불변</strong>이라는 성질을 공유. 단, "먼저 로그 → 나중에 데이터"의 2단계 구조는 아니다. Git에는 애초에 덮어쓸 "데이터 파일"이 없다</td>
+        </tr>
+        <tr>
+          <td>reflog<br><code>.git/logs/HEAD</code></td>
+          <td>브랜치 끝과 HEAD가 <strong>언제 어디를 가리켰는지</strong>를 시간순으로 append하는 로컬 저널</td>
+          <td>Git에서 <strong>WAL에 가장 가까운 것</strong>. <code>reset --hard</code>로 날린 커밋을 되찾을 수 있는 이유가 이 저널이다</td>
+        </tr>
+        <tr>
+          <td><code>.git/index.lock</code></td>
+          <td><code>O_CREAT|O_EXCL</code>(파일이 없을 때만 만들고 이미 있으면 실패 — 즉 "먼저 만든 쪽이 이긴다")로 잠금 파일을 만들고, 새 내용을 거기에 쓴 뒤, <strong>원자적 rename</strong>으로 제자리에 밀어넣는다</td>
+          <td>WAL이 아니라 <strong>원자적 교체</strong> 계열. 목적은 동일하다 — 독자가 <strong>반쪽 상태를 절대 보지 않게</strong> 하는 것</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해</span>
+      <p>"append-only면 다 WAL이다" — 아니다. WAL의 정의는 append-only가 아니라 <strong>순서 규약</strong>이다: 제자리 수정될 데이터가 따로 있고, 그 수정 <em>전에</em> 로그가 디스크에 도달해야 한다. Git은 <strong>제자리 수정 자체를 하지 않는 방식</strong>(불변 객체 + 원자적 참조 교체)으로 같은 목표에 도달한다. Kafka와 이벤트 소싱도 마찬가지로 "로그가 곧 데이터"인 쪽이지 WAL 프로토콜은 아니다. <strong>공유하는 것은 구현이 아니라 통찰</strong>이다.</p>
+    </div>
   </section>
 
   <!-- ============ 08 ============ -->
   <section id="zoo">
-    <h2 class="sec"><span class="num">08</span>같은 패턴 도감 — Git·Redis·RocksDB·SQLite</h2>
+    <h2 class="sec"><span class="num">08</span>같은 패턴 도감 — RocksDB·Redis·SQLite</h2>
     <p class="kicker">이름은 다르지만 골격은 같다</p>
 
     <h3>RocksDB / LSM 트리 — 가장 교과서적인 형태</h3>
@@ -711,35 +755,6 @@ kafka_producer.<span class="c-fn">send</span>(<span class="c-str">"orders"</span
       </div>
     </div>
     <p>"제자리를 덮어쓰지 않는다"는 목표는 같고, 수단이 정확히 대칭이다.</p>
-
-    <h3>Git — 같은 목표, 다른 수단</h3>
-    <p>Slack 코멘트가 Git의 commit log를 나란히 놓은 것은 정확한 직관이다. 다만 <strong>Git은 WAL 프로토콜을 쓰지 않는다</strong>. 목표는 같지만 수단이 다르므로, 여기는 정확히 구분하는 편이 낫다.</p>
-
-    <table>
-      <thead><tr><th>Git의 요소</th><th>정체</th><th>WAL과의 관계</th></tr></thead>
-      <tbody>
-        <tr>
-          <td>커밋 히스토리</td>
-          <td>불변 객체들의 append-only DAG(방향 비순환 그래프 — 각 커밋이 부모를 가리키기만 하고 되돌아오지 않는 구조). 새 커밋은 기존 객체를 <strong>수정하지 않고 추가</strong>한다. <code>--amend</code>조차 새 커밋을 만들고 참조만 옮기는 것이다</td>
-          <td><strong>append-only + 불변</strong>이라는 성질을 공유. 단, "먼저 로그 → 나중에 데이터"의 2단계 구조는 아니다. Git에는 애초에 덮어쓸 "데이터 파일"이 없다</td>
-        </tr>
-        <tr>
-          <td>reflog<br><code>.git/logs/HEAD</code></td>
-          <td>브랜치 끝과 HEAD가 <strong>언제 어디를 가리켰는지</strong>를 시간순으로 append하는 로컬 저널</td>
-          <td>Git에서 <strong>WAL에 가장 가까운 것</strong>. <code>reset --hard</code>로 날린 커밋을 되찾을 수 있는 이유가 이 저널이다</td>
-        </tr>
-        <tr>
-          <td><code>.git/index.lock</code></td>
-          <td><code>O_CREAT|O_EXCL</code>(파일이 없을 때만 만들고 이미 있으면 실패 — 즉 "먼저 만든 쪽이 이긴다")로 잠금 파일을 만들고, 새 내용을 거기에 쓴 뒤, <strong>원자적 rename</strong>으로 제자리에 밀어넣는다</td>
-          <td>WAL이 아니라 <strong>원자적 교체</strong> 계열. 목적은 동일하다 — 독자가 <strong>반쪽 상태를 절대 보지 않게</strong> 하는 것</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <div class="box warn">
-      <span class="tag">⚠️ 흔한 오해</span>
-      <p>"append-only면 다 WAL이다" — 아니다. WAL의 정의는 append-only가 아니라 <strong>순서 규약</strong>이다: 제자리 수정될 데이터가 따로 있고, 그 수정 <em>전에</em> 로그가 디스크에 도달해야 한다. Git은 <strong>제자리 수정 자체를 하지 않는 방식</strong>(불변 객체 + 원자적 참조 교체)으로 같은 목표에 도달한다. Kafka와 이벤트 소싱도 마찬가지로 "로그가 곧 데이터"인 쪽이지 WAL 프로토콜은 아니다. <strong>공유하는 것은 구현이 아니라 통찰</strong>이다.</p>
-    </div>
   </section>
 
   <!-- ============ 09 ============ -->
@@ -794,6 +809,7 @@ kafka_producer.<span class="c-fn">send</span>(<span class="c-str">"orders"</span
     <li>Git 공식 문서 — <a href="https://git-scm.com/docs/api-lockfile">api-lockfile</a> · <a href="https://git-scm.com/docs/git-reflog">git-reflog</a> (O_CREAT|O_EXCL 잠금 후 원자적 rename, reflog의 append 동작과 저장 위치)</li>
     <li>Small Datum — <a href="http://smalldatum.blogspot.com/2026/01/ssds-power-loss-protection-and-fsync.html">SSDs, power loss protection and fsync latency</a> (16KB 쓰기 후 fsync 실측: PLP 有 1.6·12.4µs / PLP 無 891·2974µs)</li>
   </ul>
+  <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
 </footer>
 
 <!-- TOC 현재 위치 하이라이트 -->

@@ -179,6 +179,18 @@
     a.card .date { margin-left: 0; width: 100%; order: 3; }
     a.card .desc, a.card .quote { font-size: 14px; }
   }
+
+  /* ===== 목록 back-link ===== */
+  .backlink {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    color: var(--text-dim); margin-bottom: 20px;
+    padding: 5px 12px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft);
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .backlink:hover { color: var(--accent); border-color: var(--accent); }
+  footer .backlink { margin: 26px 0 0; }
 </style>
 </head>
 <body>
@@ -190,7 +202,7 @@
     <p class="lede">매주 하나의 키워드를 골라, 왜 그것이 존재하게 됐는지부터 우리 스택 어디에 숨어 있는지까지 한 편으로 끝내는 문서들. 각 편은 독립적이라 아무 순서로 읽어도 됩니다.</p>
     <div class="meta-row">
       <span class="pill">📚 5편</span>
-      <span class="pill">☕ 편당 ~20분</span>
+      <span class="pill">☕ 편당 15~40분</span>
       <span class="pill">🐍 Python·Django 스택으로 연결</span>
     </div>
   </div>
