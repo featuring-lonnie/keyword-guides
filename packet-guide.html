@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<title>패킷 — HTTP 요청은 단순한 문자열 전송이 아니다</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-soft: #161b22;
+    --bg-card: #1a2029;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --text-faint: #6b7683;
+    --accent: #58a6ff;
+    --accent-2: #7ee787;
+    --cmd: #ff9e64;
+    --qry: #79c0ff;
+    --warn: #f0b429;
+    --danger: #f47067;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+    --maxw: 860px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f6f8fa;
+      --bg-card: #ffffff;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --text-dim: #57606a;
+      --text-faint: #8c959f;
+      --accent: #0969da;
+      --accent-2: #1a7f37;
+      --cmd: #bc4c00;
+      --qry: #0550ae;
+      --warn: #9a6700;
+      --danger: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(1200px 400px at 50% -50%, rgba(88,166,255,0.10), transparent);
+  }
+  .eyebrow {
+    font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 18px;
+    font-weight: 800; letter-spacing: -0.02em;
+  }
+  .lede { font-size: 19px; color: var(--text-dim); max-width: 680px; margin: 0; }
+  .quote-hero {
+    margin: 22px 0 0; padding: 12px 18px; border-left: 3px solid var(--accent);
+    background: var(--bg-soft); border-radius: 0 8px 8px 0; font-size: 16px; color: var(--text-dim);
+  }
+  .quote-hero strong { color: var(--text); }
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .pill {
+    font-size: 13px; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  nav.toc {
+    margin: 34px 0; padding: 22px 24px; background: var(--bg-soft);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  nav.toc h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-faint); margin: 0 0 14px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 34px; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  nav.toc li { margin: 5px 0; break-inside: avoid; }
+  nav.toc a { color: var(--text); text-decoration: none; font-size: 15px; }
+  nav.toc a:hover { color: var(--accent); }
+
+  main { padding: 10px 0 80px; }
+  section { padding: 34px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2.sec {
+    font-size: clamp(24px, 4vw, 32px); font-weight: 800; letter-spacing: -0.02em;
+    margin: 0 0 6px; scroll-margin-top: 20px;
+  }
+  h2.sec .num {
+    display: inline-block; font-family: var(--mono); font-size: 15px; color: var(--accent);
+    background: rgba(88,166,255,0.12); border-radius: 8px; padding: 2px 10px; margin-right: 12px;
+    vertical-align: middle; font-weight: 600;
+  }
+  h3 { font-size: 20px; font-weight: 700; margin: 30px 0 10px; letter-spacing: -0.01em; }
+  h4 { font-size: 16px; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+  p { margin: 12px 0; }
+  strong { color: var(--text); font-weight: 700; }
+  a { color: var(--accent); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 7px 0; }
+
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    padding: 1.5px 6px; border-radius: 6px; color: var(--accent-2);
+  }
+  pre {
+    background: #0b0e13; border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; margin: 16px 0; position: relative;
+    font-size: 14px; line-height: 1.6;
+  }
+  @media (prefers-color-scheme: light) { pre { background: #f6f8fa; } }
+  pre code { background: none; border: none; padding: 0; color: var(--text); font-size: 14px; }
+  .c-kw { color: #ff7b72; } .c-fn { color: #d2a8ff; } .c-str { color: #a5d6ff; }
+  .c-com { color: var(--text-faint); font-style: italic; } .c-num { color: #79c0ff; }
+  .c-ok { color: var(--accent-2); } .c-bad { color: var(--danger); }
+  @media (prefers-color-scheme: light) {
+    .c-kw { color: #cf222e; } .c-fn { color: #8250df; } .c-str { color: #0a3069; } .c-num { color: #0550ae; }
+  }
+  .code-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-faint); margin: 18px 0 -8px;
+  }
+
+  .box {
+    margin: 20px 0; padding: 16px 20px; border-radius: 12px;
+    border: 1px solid var(--border); border-left-width: 4px; background: var(--bg-card);
+  }
+  .box .tag { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+  .box p:first-of-type { margin-top: 4px; }
+  .box p:last-child { margin-bottom: 0; }
+  .box.tip { border-left-color: var(--accent-2); }
+  .box.tip .tag { color: var(--accent-2); }
+  .box.warn { border-left-color: var(--warn); }
+  .box.warn .tag { color: var(--warn); }
+  .box.danger { border-left-color: var(--danger); }
+  .box.danger .tag { color: var(--danger); }
+  .box.note { border-left-color: var(--accent); }
+  .box.note .tag { color: var(--accent); }
+  .box.analogy { border-left-color: #d2a8ff; }
+  .box.analogy .tag { color: #d2a8ff; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0; }
+  @media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+  .split .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--bg-card); }
+  .split .card.cmd { border-top: 3px solid var(--cmd); }
+  .split .card.qry { border-top: 3px solid var(--qry); }
+  .split .card h4 { margin-top: 0; font-size: 18px; }
+  .split .card.cmd h4 { color: var(--cmd); }
+  .split .card.qry h4 { color: var(--qry); }
+  .split .card ul { padding-left: 18px; margin: 8px 0 0; font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: none; }
+
+  .diagram {
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre;
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; overflow-x: auto; color: var(--text-dim); margin: 18px 0;
+  }
+  .kicker { color: var(--text-dim); font-size: 15px; margin: 2px 0 18px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 22px 0; }
+  @media (max-width: 640px) { .stat-row { grid-template-columns: 1fr; } }
+  .stat {
+    border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: var(--bg-card);
+  }
+  .stat .big { font-size: 26px; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+  .ladder { counter-reset: step; margin: 20px 0; padding: 0; list-style: none; }
+  .ladder li {
+    position: relative; padding: 14px 18px 14px 60px; margin: 12px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .ladder li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 16px; top: 14px; width: 30px; height: 30px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 15px;
+  }
+  .ladder li strong { display: block; margin-bottom: 3px; }
+
+  .timeline { margin: 20px 0; padding: 0; list-style: none; }
+  .timeline li {
+    position: relative; padding: 12px 18px 12px 110px; margin: 10px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .timeline li .yr {
+    position: absolute; left: 16px; top: 14px;
+    font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--accent);
+  }
+  .timeline li strong { display: block; margin-bottom: 2px; }
+  .timeline li span.desc { font-size: 15px; color: var(--text-dim); }
+  @media (max-width: 640px) {
+    .timeline li { padding-left: 18px; padding-top: 38px; }
+  }
+
+  footer { padding: 40px 0 60px; color: var(--text-faint); font-size: 14px; }
+  footer h3 { color: var(--text-dim); font-size: 15px; }
+  footer a { color: var(--text-dim); }
+  footer ul { padding-left: 20px; }
+
+  .tldr {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(126,231,135,0.06));
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin: 24px 0;
+  }
+  .tldr .tag { color: var(--accent); font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+  .tldr p { margin: 8px 0 0; font-size: 16px; }
+
+  /* ===== 모바일 대응 (mobile) ===== */
+  html { -webkit-text-size-adjust: 100%; }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px; }
+    header.hero { padding: 48px 0 34px; }
+    h1 { font-size: clamp(25px, 7.2vw, 34px); }
+    .lede { font-size: 17px; }
+    .quote-hero { font-size: 15px; padding: 11px 15px; }
+    .pill { font-size: 12px; padding: 5px 11px; }
+    main { padding: 6px 0 56px; }
+    section { padding: 26px 0; }
+    h2.sec { font-size: clamp(21px, 5.6vw, 26px); }
+    h2.sec .num { font-size: 13px; padding: 2px 8px; margin-right: 9px; }
+    h3 { font-size: 18px; }
+
+    /* 긴 식별자가 표·문단을 밀어내지 않도록 — 줄바꿈 허용은 code에만 한정.
+       셀 전체에 걸면 일반 단어가 글자 단위로 쪼개진다. */
+    code { overflow-wrap: anywhere; }
+    th, td { padding: 9px 10px; font-size: 14px; }
+    th { font-size: 12px; }
+    td code, th code { font-size: 0.82em; }
+
+    pre { padding: 14px 15px; }
+    pre, pre code { font-size: 13px; }
+    .diagram { font-size: 11px; padding: 15px; line-height: 1.45; }
+    .box { padding: 14px 16px; }
+    .tldr { padding: 17px 18px; }
+    .tldr p { font-size: 15px; }
+    .stat .big { font-size: 23px; }
+    .ladder li { padding: 13px 15px 13px 52px; }
+    .ladder li::before { left: 13px; top: 13px; width: 27px; height: 27px; font-size: 14px; }
+    nav.toc { padding: 18px 18px; margin: 26px 0; }
+    footer { padding: 30px 0 48px; }
+  }
+
+  /* ===== 목록 back-link ===== */
+  .backlink {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    color: var(--text-dim); margin-bottom: 20px;
+    padding: 5px 12px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft);
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .backlink:hover { color: var(--accent); border-color: var(--accent); }
+  footer .backlink { margin: 26px 0 0; }
+</style>
+</head>
+<body>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="wrap">
+    <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+    <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
+    <h1>패킷<br>HTTP 요청은 문자열 전송이 아니다</h1>
+    <p class="lede">우리는 매일 <code>requests.get(url)</code> 한 줄을 쓴다. 그 한 줄 아래에서 문자열은 잘게 쪼개지고, 세 겹으로 포장되고, 각자 다른 길로 여행한 뒤 반대편에서 다시 조립된다. 그 단위가 패킷이다. 그리고 이 포장 방식의 한계가, 결국 HTTP를 TCP에서 UDP 위로 옮기게 만들었다(HTTP/3, 2022).</p>
+    <p class="quote-hero">💬 <strong>"HTTP 요청은 단순한 문자열 전송이 아님. TCP vs UDP, QUIC은 왜 UDP 위에서 HTTP/3를 만들었을까?"</strong></p>
+    <div class="meta-row">
+      <span class="pill">☕ 읽는 데 ~20분</span>
+      <span class="pill">🕰️ 1961 패킷 교환 → 2022 HTTP/3</span>
+      <span class="pill">🐍 Python·Django 스택으로 연결</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TOC ============ -->
+<div class="wrap">
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#intro">requests.get() 한 줄의 착각</a></li>
+      <li><a href="#history">전화망을 버린 발명 — 패킷 교환</a></li>
+      <li><a href="#anatomy">패킷 해부 — 세 겹의 포장지</a></li>
+      <li><a href="#udp">UDP — 최소한의 약속</a></li>
+      <li><a href="#tcp">TCP — 신뢰성의 가격표</a></li>
+      <li><a href="#http">HTTP는 그 위에 산다</a></li>
+      <li><a href="#hol">TCP의 유리천장 — HOL 블로킹</a></li>
+      <li><a href="#quic">QUIC — 왜 하필 UDP 위인가</a></li>
+      <li><a href="#practice">우리 스택에서 패킷 보기</a></li>
+      <li><a href="#cheatsheet">한 장 요약 치트시트</a></li>
+    </ol>
+  </nav>
+</div>
+
+<main class="wrap">
+
+  <!-- ============ 00 ============ -->
+  <section id="intro">
+    <h2 class="sec"><span class="num">00</span>requests.get() 한 줄의 착각</h2>
+    <p class="kicker">문자열이 "그대로" 날아간다고 생각하면 설명되지 않는 것들</p>
+
+    <p>Django 코드에서 외부 API를 부르는 흔한 한 줄이 있다.</p>
+
+<pre><code>resp = requests.<span class="c-fn">get</span>(<span class="c-str">"https://api.example.com/v1/users"</span>)</code></pre>
+
+    <p>겉보기에 이 코드는 <code>GET /v1/users HTTP/1.1...</code>이라는 <strong>문자열을 서버에 보내고 문자열을 돌려받는 일</strong>처럼 보인다. 하지만 문자열이 통째로 날아간다는 모델로는 설명할 수 없는 일들이 실무에서 매일 일어난다:</p>
+
+    <ul>
+      <li>왜 같은 요청인데 <strong>첫 요청만 유독 느린가?</strong> (연결 수립 비용)</li>
+      <li>왜 응답 JSON이 <strong>중간에 잘려서 도착하는 법이 없는가?</strong> 네트워크는 분명 유실이 있는데?</li>
+      <li>왜 VPN을 켜면 멀쩡하던 업로드가 <strong>특정 크기에서만 멈추는가?</strong> (MTU 문제)</li>
+      <li>왜 구글은 잘 돌아가던 HTTP를 굳이 <strong>UDP 위에 다시 만들었는가?</strong></li>
+    </ul>
+
+    <p>네 가지 질문의 답은 전부 한 단어로 수렴한다. <strong>패킷(packet)</strong> — 데이터가 네트워크를 여행하는 실제 단위다.</p>
+
+    <div class="box note">
+      <span class="tag">이 문서가 답하는 것</span>
+      <p>① HTTP "문자열"은 실제로 어떤 모습으로 전선을 타는가 ② TCP와 UDP는 무엇을 맞바꾼 선택지인가 ③ QUIC은 왜 TCP를 고치지 않고 UDP 위에 새로 지었는가. 다 읽으면 <code>curl</code>이 느린 이유를 계층 단위로 짚을 수 있게 된다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 01 ============ -->
+  <section id="history">
+    <h2 class="sec"><span class="num">01</span>전화망을 버린 발명 — 패킷 교환</h2>
+    <p class="kicker">패킷은 기술이기 전에, 회선을 독점하지 않겠다는 설계 사상이다</p>
+
+    <p>1960년대까지 장거리 통신의 유일한 모델은 <strong>회선 교환(circuit switching)</strong>이었다. 전화를 걸면 나와 상대 사이에 물리적 경로 하나가 <strong>통화가 끝날 때까지 독점</strong>된다. 품질은 보장되지만, 침묵하는 순간에도 회선은 낭비되고, 경로 중 한 곳이 끊기면 통화 전체가 죽는다.</p>
+
+    <p>이를 뒤집은 것이 <strong>패킷 교환(packet switching)</strong>이다. 데이터를 작은 조각으로 잘라 각 조각에 <strong>목적지 주소를 붙이고</strong>, 조각마다 그때그때 가능한 경로로 독립적으로 보낸 뒤, 도착지에서 재조립한다. 회선을 독점하는 대신 <strong>모두가 같은 회선을 잘게 나눠 쓰는</strong> 방식이다.</p>
+
+    <ol class="timeline" style="list-style:none;padding:0">
+      <li><span class="yr">1961–64</span><strong>폴 바란(Paul Baran), RAND 연구소</strong><span class="desc">공격에도 살아남는 분산 통신망 연구(On Distributed Communications). 메시지를 블록으로 나눠 여러 경로로 보내는 개념 제안</span></li>
+      <li><span class="yr">1965–66</span><strong>도널드 데이비스(Donald Davies), 영국 NPL</strong><span class="desc">같은 개념을 독립적으로 고안하고 "패킷"이라는 이름을 붙임</span></li>
+      <li><span class="yr">1969</span><strong>ARPANET 첫 메시지</strong><span class="desc">UCLA→스탠퍼드연구소(SRI). 패킷 교환 네트워크의 첫 실증 — 오늘날 인터넷의 직계 조상</span></li>
+      <li><span class="yr">1980–81</span><strong>UDP(RFC 768) · TCP(RFC 793) 표준화</strong><span class="desc">패킷 위에서 "어떤 약속으로 주고받을지"를 정한 두 전송 규약</span></li>
+      <li><span class="yr">2021–22</span><strong>QUIC(RFC 9000) · HTTP/3(RFC 9114)</strong><span class="desc">40년 만의 전송 계층 세대교체 — 이 문서의 종착지</span></li>
+    </ol>
+
+    <div class="box analogy">
+      <span class="tag">📦 비유 — 전화 vs 택배</span>
+      <p>회선 교환은 <strong>전용 전화선</strong>이다: 통화 중엔 그 선이 온전히 내 것. 패킷 교환은 <strong>택배</strong>다: 이삿짐을 상자 여러 개에 나눠 담고 각 상자에 주소를 붙이면, 상자마다 다른 트럭·다른 고속도로를 타고 가도 결국 같은 집에 도착한다. 트럭 하나가 막혀도 이사 전체가 멈추지 않는다.</p>
+    </div>
+
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각</span>
+      <p>이 사상 덕분에 <strong>순서 뒤바뀜과 유실은 버그가 아니라 전제</strong>다. 패킷들은 서로 다른 경로로 여행하므로 늦게 출발한 놈이 먼저 도착할 수 있고, 중간 라우터가 혼잡하면 조용히 버려진다(drop). "네트워크는 원래 불안정하다"가 아니라, <strong>불안정을 허용하는 대신 값싸고 튼튼해지는 쪽을 선택한 것</strong>이다. 그 위에 신뢰성을 다시 쌓는 일은 다음 계층(TCP)의 몫이 된다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 02 ============ -->
+  <section id="anatomy">
+    <h2 class="sec"><span class="num">02</span>패킷 해부 — 세 겹의 포장지</h2>
+    <p class="kicker">HTTP 문자열은 잘리고, 세 번 포장되어 전선을 탄다</p>
+
+    <p>이제 <code>requests.get()</code>의 문자열이 실제로 어떤 모습이 되는지 보자. 애플리케이션이 쓴 데이터는 아래로 내려가며 계층마다 <strong>헤더(header)</strong> — 그 계층이 일하는 데 필요한 메타데이터 — 를 앞에 덧붙인다. 이 과정을 <strong>캡슐화(encapsulation)</strong>라 부른다.</p>
+
+    <div class="diagram">애플리케이션   "GET /v1/users HTTP/1.1\r\nHost: ..."   ← HTTP 메시지 (문자열)
+                    │  잘라서
+                    ▼
+전송 계층     ┌─────────┬──────────────┐
+ (TCP/UDP)    │ TCP 헤더 │  데이터 조각  │                ← 세그먼트 (포트·순서번호)
+              └─────────┴──────────────┘
+                    ▼
+인터넷 계층   ┌────────┬─────────┬──────────────┐
+ (IP)         │ IP 헤더 │ TCP 헤더 │  데이터 조각  │      ← IP 패킷 (IP 주소)
+              └────────┴─────────┴──────────────┘
+                    ▼
+링크 계층     ┌──────────┬────────┬─────────┬──────────┐
+ (Ethernet)   │ ETH 헤더  │ IP 헤더 │ TCP 헤더 │  데이터   │  ← 프레임 (MAC 주소 = 바로 다음 장비까지의 주소)
+              └──────────┴────────┴─────────┴──────────┘
+                    ▼
+              010110... 전기 신호 / 전파 / 빛</div>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 세그먼트 · 패킷 · 프레임</span>
+      <p>엄밀히는 계층마다 이름이 다르다 — TCP 조각은 <strong>세그먼트(segment)</strong>, IP 조각은 <strong>패킷(packet)</strong>, 이더넷 조각은 <strong>프레임(frame)</strong>. 일상 대화에선 전부 뭉뚱그려 "패킷"이라 부르며, 이 문서도 구분이 필요한 곳 외엔 그렇게 쓴다.</p>
+    </div>
+
+    <h3>왜 자르는가 — MTU 1,500바이트</h3>
+    <p>포장 한 상자에 담을 수 있는 크기엔 상한이 있다. 이더넷 표준에서 프레임 하나에 실을 수 있는 IP 패킷의 최대 크기, 즉 <strong>MTU(Maximum Transmission Unit)</strong>는 관례적으로 <strong>1,500바이트</strong>다. 여기서 IP 헤더 20바이트와 TCP 헤더 20바이트(옵션 없을 때 기준)를 빼면, 패킷 하나에 실리는 실제 데이터는 최대 <strong>1,460바이트</strong>(MSS, Maximum Segment Size)다.</p>
+
+    <div class="stat-row">
+      <div class="stat"><div class="big">1,500 B</div><div class="lbl">이더넷 MTU — IP 패킷 하나의 최대 크기</div></div>
+      <div class="stat"><div class="big">20 + 20 B</div><div class="lbl">IP 헤더 + TCP 헤더 (옵션 없을 때)</div></div>
+      <div class="stat"><div class="big">1,460 B</div><div class="lbl">MSS — 패킷 하나에 실리는 실제 데이터</div></div>
+    </div>
+
+    <p>즉 100KB짜리 JSON 응답은 <strong>약 70개의 패킷</strong>으로 잘려 도착한다. "응답을 받았다"는 한 문장 뒤에는 70번의 독립적인 배달이 숨어 있는 것이다.</p>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해 — "패킷은 네트워크가 알아서 해주는 것"</span>
+      <p>대체로 맞지만, 경계가 새는 순간이 있다. VPN·터널은 패킷을 <strong>한 번 더 포장</strong>하므로 실효 MTU가 1,500보다 작아진다(예: 1,400대). 이때 큰 패킷이 조용히 버려지면 "작은 요청은 되는데 큰 업로드만 멈추는" 괴상한 증상이 된다. ping은 되는데 파일 업로드만 안 되면 MTU를 의심하라 — 애플리케이션 로그엔 아무것도 남지 않는 계층의 문제다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 03 ============ -->
+  <section id="udp">
+    <h2 class="sec"><span class="num">03</span>UDP — 최소한의 약속</h2>
+    <p class="kicker">"IP 패킷에 포트 번호만 얹었습니다"</p>
+
+    <p>패킷을 받았다 치자. 이 컴퓨터에서 돌아가는 수십 개 프로세스 중 <strong>누구에게 전달할 것인가?</strong> IP 주소는 컴퓨터까지만 데려다준다. 프로세스를 구분하는 번호가 <strong>포트(port)</strong>이고, 이걸 붙여주는 최소한의 규약이 <strong>UDP(User Datagram Protocol, RFC 768 · 1980)</strong>다.</p>
+
+    <p>UDP의 헤더는 <strong>8바이트</strong>가 전부다: 출발 포트, 도착 포트, 길이, 체크섬(전송 중 깨졌는지 검산하는 값). 끝. 연결 개념도, 도착 확인도, 순서 보장도, 재전송도 없다. 패킷 교환망의 성질(유실·순서 뒤바뀜)이 <strong>그대로 애플리케이션에 노출</strong>된다.</p>
+
+<pre><code><span class="c-com"># UDP 전송의 전부 — 연결 수립 없이 즉시 발사</span>
+<span class="c-kw">import</span> socket
+sock = socket.<span class="c-fn">socket</span>(socket.AF_INET, socket.SOCK_DGRAM)   <span class="c-com"># DGRAM = UDP</span>
+sock.<span class="c-fn">sendto</span>(<span class="c-str">b"ping"</span>, (<span class="c-str">"10.0.0.5"</span>, <span class="c-num">9999</span>))
+<span class="c-com"># 도착했는지는 아무도 모른다. 그게 사양이다.</span></code></pre>
+
+    <p>이 "무책임함"은 결함이 아니라 <strong>용도에 맞는 선택지</strong>다. 화상통화에서 0.5초 전 프레임이 유실됐다면, 재전송받아 늦게 보여주는 것보다 <strong>버리고 다음 프레임을 보여주는 게 낫다</strong>. DNS 질의처럼 한 패킷에 담기는 요청-응답이라면 연결 수립 자체가 낭비다. 게임·화상통화(WebRTC)·DNS가 UDP를 쓰는 이유다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 데이터그램(datagram)</span>
+      <p>UDP가 보내는 독립적인 메시지 한 덩어리. TCP가 데이터를 경계 없는 <strong>바이트 스트림</strong>으로 다루는 것과 달리, UDP는 <code>sendto()</code> 한 번 = 데이터그램 한 개 = (충분히 작다면) 패킷 한 개로, 메시지 경계가 보존된다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 04 ============ -->
+  <section id="tcp">
+    <h2 class="sec"><span class="num">04</span>TCP — 신뢰성의 가격표</h2>
+    <p class="kicker">불안정한 패킷망 위에 "믿을 수 있는 바이트 스트림"이라는 환상을 짓는다</p>
+
+    <p>반면 HTTP·데이터베이스·이메일은 <strong>단 1바이트도 잃어버리면 안 된다</strong>. JSON 중간이 유실된 채 파싱할 수는 없다. <strong>TCP(Transmission Control Protocol, RFC 793 · 1981)</strong>는 유실되고 뒤섞이는 패킷망 위에, 다음 세 가지 장치로 "빠짐없고 순서 맞는 바이트 스트림"을 지어 올린다:</p>
+
+    <ol class="ladder">
+      <li><strong>연결 수립 — 3-way 핸드셰이크</strong>보내기 전에 SYN(synchronize, 접속 개시 신호) → SYN-ACK → ACK <strong>세 번의 메시지를 주고받는(왕복 1회)</strong> 절차로 서로의 존재와 시작 순서번호를 합의한다. 이 비용이 "첫 요청만 느린" 이유의 절반이다 — 나머지 절반은 TLS(HTTPS의 's'를 담당하는 암호화 규약. 암호화 키를 합의하는 자체 핸드셰이크가 TCP 핸드셰이크 뒤에 한 번 더 필요하다) 핸드셰이크다.</li>
+      <li><strong>순서번호 + 확인응답(ACK) + 재전송</strong>모든 바이트에 일련번호를 붙이고, 받는 쪽은 어디까지 받았는지 응답(ACK)한다. 응답이 없으면 유실로 판단하고 다시 보낸다. 우리가 "응답이 중간에 잘린 걸 본 적 없는" 이유다.</li>
+      <li><strong>흐름·혼잡 제어</strong>상대와 네트워크가 소화할 수 있는 만큼만 보내도록 전송 속도를 조절한다. 유실이 감지되면 "네트워크가 혼잡하다"는 신호로 읽고 스스로 속도를 줄인다.</li>
+    </ol>
+
+    <div class="split">
+      <div class="card cmd">
+        <h4>⚙️ TCP — 등기 소포</h4>
+        <p style="font-size:15px;margin:4px 0 0">연결 지향 · 신뢰성 보장 · 바이트 스트림</p>
+        <ul>
+          <li>순서 보장, 유실 시 재전송</li>
+          <li>연결 수립 비용(핸드셰이크) 선불</li>
+          <li>HTTP/1.1·HTTP/2, DB, SSH, 이메일</li>
+          <li>커널(OS의 핵심부)이 구현 — 앱은 소켓을 <code>SOCK_STREAM</code>(TCP)으로 여는 것까지만 관여</li>
+        </ul>
+      </div>
+      <div class="card qry">
+        <h4>🔍 UDP — 엽서</h4>
+        <p style="font-size:15px;margin:4px 0 0">비연결 · 무보장 · 메시지(데이터그램) 단위</p>
+        <ul>
+          <li>즉시 발사, 도착·순서 보장 없음</li>
+          <li>헤더 8바이트, 오버헤드 최소</li>
+          <li>DNS, 화상통화, 게임, <strong>그리고 QUIC</strong></li>
+          <li>신뢰성이 필요하면 앱이 직접 만든다</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰 — TCP와 UDP는 우열이 아니라 트레이드오프다</span>
+      <p>TCP는 신뢰성을 <strong>지연(latency)으로 지불</strong>한다: 핸드셰이크 왕복, ACK 대기, 유실 시 재전송 대기. UDP는 지연을 아끼는 대신 <strong>신뢰성을 애플리케이션의 숙제로 떠넘긴다</strong>. "TCP가 더 좋은 프로토콜"이 아니라, <strong>무엇을 포기할지 고른 두 선택지</strong>다. 이 관점이 서야 "QUIC이 UDP 위"라는 문장이 이상하게 들리지 않는다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 05 ============ -->
+  <section id="http">
+    <h2 class="sec"><span class="num">05</span>HTTP는 그 위에 산다</h2>
+    <p class="kicker">HTTP의 역사는 "TCP 연결을 어떻게 아껴 쓸까"의 역사였다</p>
+
+    <p>HTTP는 스스로 패킷을 다루지 않는다. TCP가 제공하는 "믿을 수 있는 바이트 스트림"이라는 배관 위에 <strong>요청-응답이라는 대화 형식</strong>만 얹은 규약이다. 그래서 HTTP의 진화사는 곧 <strong>비싼 TCP 연결을 아껴 쓰는 기법의 진화사</strong>다:</p>
+
+    <table>
+      <thead><tr><th>세대</th><th>연결 사용 방식</th><th>남은 문제</th></tr></thead>
+      <tbody>
+        <tr><td><strong>HTTP/1.0</strong> (1996)</td><td>요청 1개마다 TCP 연결을 새로 맺고 끊음</td><td>핸드셰이크 비용 × 요청 수</td></tr>
+        <tr><td><strong>HTTP/1.1</strong> (1997)</td><td>keep-alive — 연결 하나를 재사용, 단 요청은 한 번에 하나씩 순서대로</td><td>앞 응답이 끝나야 다음 요청 (HTTP 계층 줄서기)</td></tr>
+        <tr><td><strong>HTTP/2</strong> (2015)</td><td>멀티플렉싱 — 연결 하나에 여러 요청·응답 스트림을 동시에 섞어 보냄</td><td><strong>TCP 계층의 줄서기가 남는다 → 다음 섹션</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>브라우저가 페이지 하나를 그리는 데 요청 수십 개가 필요해지자, HTTP/2는 <strong>연결 하나에 스트림 여러 개를 겹쳐 보내는 멀티플렉싱(multiplexing)</strong>으로 대응했다. HTML·CSS·이미지 요청이 한 TCP 연결 위에서 동시에 흐른다. HTTP 계층의 줄서기는 이걸로 풀렸다 — 그런데 여기서 <strong>더 깊은 계층의 문제</strong>가 드러난다.</p>
+
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각 — 핸드셰이크 비용은 코드 한 줄 차이다</span>
+      <p>외부 API를 반복 호출하는 Django 서비스에서 <code>requests.get()</code>을 매번 새로 부르면 호출마다 TCP+TLS 핸드셰이크를 다시 지불한다. <code>requests.Session()</code>을 재사용하면 keep-alive로 연결이 유지된다:</p>
+<pre><code><span class="c-com"># ❌ 호출마다 TCP+TLS 핸드셰이크 (왕복 2~3회씩 낭비)</span>
+<span class="c-kw">for</span> user_id <span class="c-kw">in</span> user_ids:
+    requests.<span class="c-fn">get</span>(<span class="c-str">f"https://api.example.com/users/{user_id}"</span>)
+
+<span class="c-com"># ✅ 연결 재사용 — 핸드셰이크는 처음 한 번만</span>
+session = requests.<span class="c-fn">Session</span>()
+<span class="c-kw">for</span> user_id <span class="c-kw">in</span> user_ids:
+    session.<span class="c-fn">get</span>(<span class="c-str">f"https://api.example.com/users/{user_id}"</span>)</code></pre>
+    </div>
+  </section>
+
+  <!-- ============ 06 ============ -->
+  <section id="hol">
+    <h2 class="sec"><span class="num">06</span>TCP의 유리천장 — HOL 블로킹</h2>
+    <p class="kicker">HTTP/2가 아무리 영리해도 뚫을 수 없는 한 층 아래의 벽</p>
+
+    <p><strong>HOL 블로킹(Head-of-Line blocking, 줄 맨 앞 막힘)</strong> = 줄 맨 앞의 하나가 막히면 뒤 전체가 기다리는 현상. 문제는 TCP의 <strong>가장 큰 장점이 이 현상을 만든다</strong>는 것이다.</p>
+
+    <p>TCP는 "빠짐없이, 순서대로"를 약속했다. 그래서 패킷 하나가 유실되면, <strong>그 뒤에 이미 도착해 있는 패킷들도 커널 버퍼에서 대기</strong>한다. 재전송된 패킷이 도착해 구멍이 메워지기 전까지, 커널은 애플리케이션에 한 바이트도 올려보내지 않는다 — 순서를 어길 수 없기 때문이다.</p>
+
+    <p>HTTP/2에서 이게 치명적인 이유: 멀티플렉싱으로 <strong>여러 스트림이 한 TCP 연결에 타고 있는데</strong>, TCP는 스트림 개념을 모른다. TCP가 보기엔 전부 하나의 바이트 스트림이다. 그래서 CSS 스트림의 패킷 하나가 유실되면, <strong>멀쩡히 도착한 이미지·HTML 스트림까지 전부 함께 멈춘다</strong>.</p>
+
+    <div class="diagram">한 TCP 연결에 스트림 3개 (HTTP/2 멀티플렉싱)
+
+  전송:   [CSS#1] [IMG#1] [HTML#1] [CSS#2] [IMG#2] ...
+                     ✕
+                   유실!
+
+  수신 버퍼:  [CSS#1] [ 구멍 ] [HTML#1] [CSS#2] [IMG#2]
+                        ▲
+             TCP: "IMG#1이 올 때까지 아무것도 못 올려보냄"
+             → 이미 도착한 HTML#1, CSS#2 도 전부 대기
+             → 스트림 3개가 전부 멈춤 (연대책임)</div>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰 — 문제는 HTTP가 아니라 TCP에 있었다</span>
+      <p>HTTP/2는 HTTP 계층의 줄서기를 없앴지만, <strong>TCP 계층의 줄서기는 HTTP가 어떻게 해볼 수 없다</strong>. 순서 보장은 TCP의 정체성이고, 그 구현은 커널 안에 있다. 실제로 패킷 유실이 잦은 환경에서는 HTTP/2 연결 하나가 HTTP/1.1 연결 여러 개(브라우저는 보통 도메인당 최대 6개를 병렬로 연다)보다 느려지는 역전이 관측된다 — 유실 하나의 피해 범위가 연결 전체이기 때문이다. 이 벽을 넘으려면 <strong>HTTP가 아니라 전송 계층을 갈아야 한다</strong>.</p>
+    </div>
+  </section>
+
+  <!-- ============ 07 ============ -->
+  <section id="quic">
+    <h2 class="sec"><span class="num">07</span>QUIC — 왜 하필 UDP 위인가</h2>
+    <p class="kicker">관통 질문의 답 — 40년 묵은 전송 계층을 교체하는 유일하게 가능한 경로</p>
+
+    <p>2012년 구글의 짐 로스킨드(Jim Roskind)가 설계한 <strong>QUIC</strong>은 2013년 공개되고 2015년 IETF(인터넷 표준화 기구)에 제출되어, 2021년 5월 <strong>RFC 9000</strong>으로 표준이 됐다. 그리고 2022년 6월, QUIC 위에서 동작하는 HTTP가 <strong>HTTP/3(RFC 9114)</strong>로 표준화됐다. 그런데 왜 TCP를 개선하지 않고 UDP 위에 새로 만들었을까? 이유는 두 겹이다.</p>
+
+    <h3>이유 1 — TCP는 사실상 수정 불가능하다 (경화, ossification)</h3>
+    <p>TCP를 고치는 게 정공법 아닌가? 시도는 있었다. 그러나 두 개의 벽이 있다:</p>
+    <ul>
+      <li><strong>TCP는 커널 안에 산다.</strong> TCP 동작을 바꾸려면 전 세계 서버·PC·폰의 OS 커널이 업데이트되어야 한다. 수년~수십 년 단위의 일이다.</li>
+      <li><strong>중간 장비들이 TCP를 뜯어본다.</strong> 인터넷 곳곳의 방화벽·NAT(사설 IP↔공인 IP를 바꿔치기하는 공유기·게이트웨이 장비)·로드밸런서(통칭 미들박스)는 TCP 헤더를 읽고 참견하도록 만들어져 있어, TCP에 새 기능을 넣으면 낯선 패킷을 <strong>버리거나 망가뜨린다</strong>. 실제로 TCP도 UDP도 아닌 새 전송 프로토콜(SCTP 등)은 미들박스들이 통과시켜주지 않아 보급에 실패했다. 프로토콜이 굳어 바꿀 수 없게 된 이 상태를 <strong>경화(ossification)</strong>라 부른다.</li>
+    </ul>
+    <p>남은 선택지가 UDP다. UDP는 (거의) 모든 미들박스가 통과시켜 주고, 아무 약속도 하지 않는 <strong>빈 종이</strong>라서 그 위에 무엇이든 새로 지을 수 있다. QUIC은 TCP가 커널에서 하던 일 — 연결, 순서, 재전송, 혼잡 제어 — 을 전부 <strong>유저스페이스(애플리케이션/라이브러리 레벨)에서 다시 구현</strong>했다. 커널 업데이트 없이 브라우저 배포만으로 프로토콜을 진화시킬 수 있게 된 것이다. 나아가 QUIC은 헤더 대부분을 암호화해 미들박스가 아예 뜯어볼 수 없게 만들었다 — <strong>미래의 경화까지 차단</strong>한 설계다.</p>
+
+    <div class="box analogy">
+      <span class="tag">🏗️ 비유 — 리모델링 불가 건물</span>
+      <p>TCP는 세입자(미들박스)들이 벽 구조에 맞춰 살림을 짜놓은 40년 된 건물이라 기둥 하나 옮길 수 없다. UDP는 옆의 빈 땅이다. QUIC은 그 빈 땅에 <strong>새 건물을 짓고 창문을 전부 불투명하게(암호화) 만들어</strong>, 앞으로는 누구도 벽 구조에 의존하지 못하게 했다.</p>
+    </div>
+
+    <h3>이유 2 — 새로 짓는 김에 TCP의 구조적 한계를 해결</h3>
+    <table>
+      <thead><tr><th>TCP + TLS의 문제</th><th>QUIC의 해법</th></tr></thead>
+      <tbody>
+        <tr><td>HOL 블로킹 — 유실 하나에 모든 스트림 연대책임</td><td><strong>스트림을 전송 계층이 직접 안다.</strong> 스트림별로 독립 전달 — CSS 패킷이 유실돼도 그 스트림만 기다리고 이미지·HTML은 계속 흐른다</td></tr>
+        <tr><td>연결 비용 — TCP 핸드셰이크 1왕복 + TLS 1.3 핸드셰이크 1왕복 = 첫 데이터까지 2왕복 (TLS 1.3의 재방문 단축을 써도 TCP의 1왕복은 남는다)</td><td><strong>전송과 암호화(TLS 1.3 내장) 핸드셰이크를 한 번에</strong> — 1왕복. 한 번 만난 서버엔 <strong>0-RTT</strong>(왕복 없이 첫 패킷에 요청 동봉 — 재전송 공격(replay) 위험이 있어 GET 같은 멱등 요청에만 허용)도 가능</td></tr>
+        <tr><td>연결 = 양끝의 (IP, 포트) 네 값(4-튜플) — Wi-Fi에서 LTE로 바뀌면 내 IP가 바뀌므로 연결이 끊기고 처음부터 다시</td><td>연결을 <strong>연결 ID(Connection ID)</strong>로 식별 — 네트워크가 바뀌어도 같은 연결이 이어진다 (connection migration)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="diagram">첫 데이터를 보내기까지의 왕복 (RTT)
+
+TCP+TLS1.3 :  [TCP 핸드셰이크]──▶ [TLS 핸드셰이크]──▶ [HTTP 요청]   = 2 RTT
+QUIC       :  [QUIC 핸드셰이크(TLS 내장)]──▶ [HTTP 요청]            = 1 RTT
+QUIC 재방문:  [핸드셰이크 + HTTP 요청 동봉]                          = 0 RTT
+
+RTT 100ms 환경이면 첫 바이트까지 200ms → 100ms → ~0ms</div>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해 — "QUIC = UDP니까 신뢰성이 없다"</span>
+      <p>반대다. QUIC은 UDP를 <strong>배달 트럭으로만</strong> 쓰고, 그 위에서 순서·재전송·혼잡 제어·암호화를 전부 자체 구현한다. 신뢰성은 TCP와 동급이고, 스트림 독립성·핸드셰이크·연결 이동성은 그 이상이다. "UDP 위"는 무책임함의 계승이 아니라 <strong>배포 가능한 유일한 통로</strong>였을 뿐이다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 08 ============ -->
+  <section id="practice">
+    <h2 class="sec"><span class="num">08</span>우리 스택에서 패킷 보기</h2>
+    <p class="kicker">추상적 계층 이야기를 nginx·Django·디버깅 현장으로 내리기</p>
+
+    <h3>지금 우리 요청은 어느 세대인가</h3>
+    <p>브라우저 개발자도구 Network 탭에서 Protocol 열을 켜보면 (<code>h2</code> = HTTP/2, <code>h3</code> = HTTP/3) 지금도 확인할 수 있다. 전형적인 Django 서비스라면:</p>
+    <ul>
+      <li><strong>브라우저 ↔ CDN/로드밸런서</strong> — CDN(Cloudflare, CloudFront 등)이 HTTP/3를 지원하면 이 구간은 이미 QUIC일 수 있다. nginx도 1.25부터 HTTP/3를 지원한다.</li>
+      <li><strong>nginx ↔ gunicorn ↔ Django</strong> — 이 구간은 여전히 HTTP/1.1 over TCP(또는 유닉스 소켓)다. HTTP/3의 이득은 유실·지연이 많은 <strong>사용자 쪽 마지막 구간</strong>에서 크므로, 내부 구간까지 바꿀 실익은 적다 — 사용자 구간은 무선(Wi-Fi·LTE)이라 유실이 잦고 이동 중 네트워크가 바뀌지만, 내부 구간은 같은 데이터센터의 안정된 유선이라 TCP의 약점이 드러날 일이 거의 없기 때문이다.</li>
+    </ul>
+    <p>즉 <strong>"우리 서비스에 HTTP/3 적용"은 대부분 엣지(CDN/nginx) 설정 문제</strong>지 Django 코드의 문제가 아니다 — HTTP는 어느 배관 위에서든 같은 대화 형식이기 때문이다.</p>
+
+    <h3>패킷을 직접 눈으로 보기</h3>
+    <p>계층 이야기가 실감나지 않으면 한 번쯤 직접 잡아보라. 서버에서 <code>tcpdump</code>로 80/443 포트를 캡처하면 이 문서의 그림이 그대로 보인다:</p>
+
+<pre><code>$ tcpdump -i any port <span class="c-num">443</span> -nn -c <span class="c-num">5</span>
+<span class="c-com"># S = SYN, . = ACK — 3-way 핸드셰이크가 실제로 보인다</span>
+10:23:01.100 IP 10.0.1.7.54321 &gt; 93.184.216.34.443: Flags [<span class="c-ok">S</span>], seq 1828...
+10:23:01.131 IP 93.184.216.34.443 &gt; 10.0.1.7.54321: Flags [<span class="c-ok">S.</span>], seq 992..., ack 1829...
+10:23:01.131 IP 10.0.1.7.54321 &gt; 93.184.216.34.443: Flags [<span class="c-ok">.</span>], ack 993...
+<span class="c-com"># 이후: length 1460 — 앞서 계산한 MSS 크기 그대로 잘려 나간다</span>
+<span class="c-com"># (리눅스 기본값인 TCP timestamps 옵션 12B가 켜져 있으면 1448로 보인다)</span></code></pre>
+
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각 — 계층으로 나눠서 의심하라</span>
+      <p>"API가 느리다/안 된다"는 제보를 받으면 계층 사다리를 위에서부터 내려가라: <strong>① HTTP 계층</strong>(상태코드·앱 로그·gunicorn 타임아웃) → <strong>② 전송 계층</strong>(핸드셰이크는 되나? <code>curl -v</code>로 connect 시간과 TLS 시간 분리) → <strong>③ 그 아래</strong>(DNS, MTU, 방화벽이 특정 포트를 버리는가). 대부분은 ①에서 끝나지만, ①의 로그에 아무것도 없는 미스터리는 거의 항상 ②·③의 문제다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 09 치트시트 ============ -->
+  <section id="cheatsheet">
+    <h2 class="sec"><span class="num">09</span>한 장 요약 치트시트</h2>
+
+    <div class="tldr">
+      <span class="tag">Q. HTTP 요청은 단순한 문자열 전송이 아니다?</span>
+      <p><strong>맞다 — 문자열은 최대 1,460바이트 조각으로 잘리고, TCP·IP·이더넷 세 겹 헤더로 포장되어, 각자 독립적으로 여행한 뒤 반대편에서 재조립된다.</strong> 유실·순서 뒤바뀜은 패킷 교환망의 전제이고, 이를 숨겨 "온전한 문자열이 도착한 것처럼" 보이게 만드는 장치(순서번호·ACK·재전송)가 TCP다. 그 편의는 핸드셰이크 왕복과 대기라는 지연으로 지불한다.</p>
+    </div>
+
+    <div class="tldr">
+      <span class="tag">Q. TCP vs UDP — 무엇의 트레이드오프인가?</span>
+      <p><strong>TCP는 신뢰성을 지연으로 지불하고, UDP는 지연을 아끼는 대신 신뢰성을 애플리케이션의 숙제로 떠넘긴다.</strong> 우열이 아니라 무엇을 포기할지 고른 두 선택지다. QUIC은 UDP 쪽을 골라 그 숙제를 직접 푼 경우다.</p>
+    </div>
+
+    <div class="tldr">
+      <span class="tag">Q. QUIC은 왜 UDP 위에서 HTTP/3를 만들었나?</span>
+      <p><strong>TCP는 커널과 미들박스에 박혀 굳어버려(경화) 사실상 수정이 불가능했고, UDP는 어디서나 통과되는 빈 종이였기 때문이다.</strong> QUIC은 UDP를 배달 트럭으로만 쓰고 그 위에 신뢰성·TLS 1.3·스트림을 유저스페이스에서 새로 구현했다. 덕분에 TCP의 구조적 한계였던 HOL 블로킹(유실 하나에 전체 스트림 연대책임)을 스트림별 독립 전달로 풀고, 첫 데이터까지의 왕복을 2 RTT → 1 RTT(재방문 0 RTT)로 줄였다.</p>
+    </div>
+
+    <table>
+      <thead><tr><th>기억할 것</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>패킷 교환</td><td>데이터를 주소 붙은 조각으로 나눠 독립 배송. 1960년대 바란·데이비스 고안, 1969 ARPANET 실증</td></tr>
+        <tr><td>캡슐화</td><td>HTTP 문자열 → TCP 세그먼트 → IP 패킷 → 이더넷 프레임. 계층마다 헤더 한 겹</td></tr>
+        <tr><td>MTU / MSS</td><td>이더넷 관례 1,500B / 데이터는 최대 1,460B. VPN이 끼면 줄어들어 "큰 요청만 실패" 증상</td></tr>
+        <tr><td>UDP</td><td>포트·길이·체크섬뿐인 8B 헤더(RFC 768). DNS·화상통화·게임, 그리고 QUIC의 토대</td></tr>
+        <tr><td>TCP</td><td>3-way 핸드셰이크(메시지 3개·1왕복)·순서번호·ACK·재전송(RFC 793)</td></tr>
+        <tr><td>HOL 블로킹</td><td>순서 보장의 부작용. 유실 패킷 하나가 이미 도착한 뒤 패킷 전부를 커널 버퍼에 잡아둔다</td></tr>
+        <tr><td>경화(ossification)</td><td>커널·미들박스 의존 때문에 프로토콜을 못 바꾸는 상태. SCTP의 보급 실패가 실증 사례</td></tr>
+        <tr><td>QUIC / HTTP/3</td><td>스트림 독립 전달 + TLS 1.3 내장 1왕복(재방문 0-RTT는 멱등 요청 한정) + 연결 ID. RFC 9000(2021)·9114(2022)</td></tr>
+        <tr><td>실무 한 줄</td><td><code>requests.Session()</code> 재사용 = 핸드셰이크 비용 절약. HTTP/3 적용은 엣지(CDN/nginx) 설정 문제</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="wrap">
+  <h3>더 읽어보기 (출처)</h3>
+  <ul>
+    <li>IETF — <a href="https://www.rfc-editor.org/rfc/rfc9000">RFC 9000: QUIC: A UDP-Based Multiplexed and Secure Transport</a> (QUIC 표준, 2021-05)</li>
+    <li>IETF — <a href="https://www.rfc-editor.org/rfc/rfc9114">RFC 9114: HTTP/3</a> (HTTP/3 표준, 2022-06)</li>
+    <li>Daniel Stenberg(curl 저자) — <a href="https://http3-explained.haxx.se/en/why-quic/why-tcphol">HTTP/3 explained: TCP head of line blocking</a> (HOL 블로킹, 유실 환경에서 HTTP/2 vs HTTP/1.1 역전)</li>
+    <li>Wikipedia — <a href="https://en.wikipedia.org/wiki/QUIC">QUIC</a> (2012 구글 Jim Roskind 설계, 2013 공개, IETF 표준화 이력)</li>
+    <li>LivingInternet — <a href="https://www.livinginternet.com/i/iw_packet_inv.htm">Packet Switching History</a> (Paul Baran 1961–64, Donald Davies 명명, ARPANET 1969)</li>
+    <li>benjojo — <a href="https://blog.benjojo.co.uk/post/why-is-ethernet-mtu-1500">How 1500 bytes became the MTU of the internet</a> (이더넷 MTU 1,500 관례)</li>
+    <li>Imperva — <a href="https://www.imperva.com/learn/application-security/what-is-mtu-mss/">What Is MTU &amp; MSS</a> (IP+TCP 헤더 40B, MSS 1,460 계산)</li>
+  </ul>
+  <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+</footer>
+
+<!-- TOC 현재 위치 하이라이트 -->
+<script>
+  const links = [...document.querySelectorAll('nav.toc a')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      const a = map.get(e.target.id);
+      if (a && e.isIntersecting) {
+        links.forEach(l => { l.style.color = ''; l.style.fontWeight = ''; });
+        a.style.color = 'var(--accent)';
+        a.style.fontWeight = '700';
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>

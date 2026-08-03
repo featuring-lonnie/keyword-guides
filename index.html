@@ -201,7 +201,7 @@
     <h1>주니어 개발자를 위한<br>안내서 모음</h1>
     <p class="lede">매주 하나의 키워드를 골라, 왜 그것이 존재하게 됐는지부터 우리 스택 어디에 숨어 있는지까지 한 편으로 끝내는 문서들. 각 편은 독립적이라 아무 순서로 읽어도 됩니다.</p>
     <div class="meta-row">
-      <span class="pill">📚 5편</span>
+      <span class="pill">📚 6편</span>
       <span class="pill">☕ 편당 15~40분</span>
       <span class="pill">🐍 Python·Django 스택으로 연결</span>
     </div>
@@ -213,6 +213,21 @@
   <p class="kicker">최신순</p>
 
   <div class="cards">
+
+    <a class="card" href="packet-guide.html">
+      <div class="top">
+        <span class="no">06</span>
+        <h3>패킷 — HTTP 요청은 문자열 전송이 아니다</h3>
+        <span class="date">2026-08-03</span>
+      </div>
+      <p class="desc">requests.get() 한 줄 아래에서 문자열은 1,460바이트 조각으로 잘리고 세 겹으로 포장되어 각자 여행한다. 이 포장 방식의 한계(HOL 블로킹)와 TCP의 경화가, 2021년 HTTP를 UDP 위로 옮기게 만든 이유까지.</p>
+      <p class="quote">💬 HTTP 요청은 단순한 문자열 전송이 아님. TCP vs UDP, QUIC은 왜 UDP 위에서 HTTP/3를 만들었을까?</p>
+      <div class="tags">
+        <span class="tag">🕰️ 1961 패킷 교환 → 2022 HTTP/3</span>
+        <span class="tag">🐍 Django 스택 연결</span>
+        <span class="tag">⚠️ MTU·HOL 함정</span>
+      </div>
+    </a>
 
     <a class="card" href="wal-guide.html">
       <div class="top">

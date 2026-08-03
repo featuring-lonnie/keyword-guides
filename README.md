@@ -8,6 +8,7 @@
 
 | # | 키워드 | 날짜 |
 |---|---|---|
+| 06 | [패킷 — HTTP 요청은 문자열 전송이 아니다](packet-guide.html) | 2026-08-03 |
 | 05 | [WAL — Write-Ahead Logging](wal-guide.html) | 2026-07-28 |
 | 04 | [안정 해싱 (Consistent Hashing Ring)](consistent-hashing-guide.html) | 2026-07-20 |
 | 03 | [스케줄러 (CPU)](scheduler-cpu-guide.html) | 2026-07-16 |
