@@ -8,6 +8,7 @@
 
 | # | 키워드 | 날짜 |
 |---|---|---|
+| 07 | [멱등성 — 같은 요청이 두 번 와도, 세상은 한 번만 바뀐다](idempotency-guide.html) | 2026-08-11 |
 | 06 | [패킷 — HTTP 요청은 문자열 전송이 아니다](packet-guide.html) | 2026-08-03 |
 | 05 | [WAL — Write-Ahead Logging](wal-guide.html) | 2026-07-28 |
 | 04 | [안정 해싱 (Consistent Hashing Ring)](consistent-hashing-guide.html) | 2026-07-20 |

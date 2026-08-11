@@ -201,7 +201,7 @@
     <h1>주니어 개발자를 위한<br>안내서 모음</h1>
     <p class="lede">매주 하나의 키워드를 골라, 왜 그것이 존재하게 됐는지부터 우리 스택 어디에 숨어 있는지까지 한 편으로 끝내는 문서들. 각 편은 독립적이라 아무 순서로 읽어도 됩니다.</p>
     <div class="meta-row">
-      <span class="pill">📚 6편</span>
+      <span class="pill">📚 7편</span>
       <span class="pill">☕ 편당 15~40분</span>
       <span class="pill">🐍 Python·Django 스택으로 연결</span>
     </div>
@@ -213,6 +213,21 @@
   <p class="kicker">최신순</p>
 
   <div class="cards">
+
+    <a class="card" href="idempotency-guide.html">
+      <div class="top">
+        <span class="no">07</span>
+        <h3>멱등성 — 같은 요청이 두 번 와도, 세상은 한 번만 바뀐다</h3>
+        <span class="date">2026-08-11</span>
+      </div>
+      <p class="desc">타임아웃 뒤의 재시도는 이중 결제일까, 유일한 구원일까. "정확히 한 번 전달"이 수학적으로 불가능한 이유(두 장군 문제)와, 그럼에도 Kafka·Stripe가 exactly-once를 파는 방법 — at-least-once 전달 + 멱등한 처리.</p>
+      <p class="quote">💬 "한 번만 실행될 것"이라는 가정은 분산 시스템에서 상당히 비싼 가정이다. At-most-once, At-least-once, Exactly-once까지.</p>
+      <div class="tags">
+        <span class="tag">🕰️ 1870 수학 → 2017 Kafka EOS</span>
+        <span class="tag">🐍 Django·Celery 레시피</span>
+        <span class="tag">⚠️ 두 장군 문제</span>
+      </div>
+    </a>
 
     <a class="card" href="packet-guide.html">
       <div class="top">

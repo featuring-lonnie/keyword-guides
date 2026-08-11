@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<title>멱등성 — 같은 요청이 두 번 와도, 세상은 한 번만 바뀐다</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-soft: #161b22;
+    --bg-card: #1a2029;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --text-faint: #6b7683;
+    --accent: #58a6ff;
+    --accent-2: #7ee787;
+    --cmd: #ff9e64;
+    --qry: #79c0ff;
+    --warn: #f0b429;
+    --danger: #f47067;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+    --maxw: 860px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f6f8fa;
+      --bg-card: #ffffff;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --text-dim: #57606a;
+      --text-faint: #8c959f;
+      --accent: #0969da;
+      --accent-2: #1a7f37;
+      --cmd: #bc4c00;
+      --qry: #0550ae;
+      --warn: #9a6700;
+      --danger: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(1200px 400px at 50% -50%, rgba(88,166,255,0.10), transparent);
+  }
+  .eyebrow {
+    font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 18px;
+    font-weight: 800; letter-spacing: -0.02em;
+  }
+  .lede { font-size: 19px; color: var(--text-dim); max-width: 680px; margin: 0; }
+  .quote-hero {
+    margin: 22px 0 0; padding: 12px 18px; border-left: 3px solid var(--accent);
+    background: var(--bg-soft); border-radius: 0 8px 8px 0; font-size: 16px; color: var(--text-dim);
+  }
+  .quote-hero strong { color: var(--text); }
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .pill {
+    font-size: 13px; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  nav.toc {
+    margin: 34px 0; padding: 22px 24px; background: var(--bg-soft);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  nav.toc h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-faint); margin: 0 0 14px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 34px; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  nav.toc li { margin: 5px 0; break-inside: avoid; }
+  nav.toc a { color: var(--text); text-decoration: none; font-size: 15px; }
+  nav.toc a:hover { color: var(--accent); }
+
+  main { padding: 10px 0 80px; }
+  section { padding: 34px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2.sec {
+    font-size: clamp(24px, 4vw, 32px); font-weight: 800; letter-spacing: -0.02em;
+    margin: 0 0 6px; scroll-margin-top: 20px;
+  }
+  h2.sec .num {
+    display: inline-block; font-family: var(--mono); font-size: 15px; color: var(--accent);
+    background: rgba(88,166,255,0.12); border-radius: 8px; padding: 2px 10px; margin-right: 12px;
+    vertical-align: middle; font-weight: 600;
+  }
+  h3 { font-size: 20px; font-weight: 700; margin: 30px 0 10px; letter-spacing: -0.01em; }
+  h4 { font-size: 16px; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+  p { margin: 12px 0; }
+  strong { color: var(--text); font-weight: 700; }
+  a { color: var(--accent); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 7px 0; }
+
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    padding: 1.5px 6px; border-radius: 6px; color: var(--accent-2);
+  }
+  pre {
+    background: #0b0e13; border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; margin: 16px 0; position: relative;
+    font-size: 14px; line-height: 1.6;
+  }
+  @media (prefers-color-scheme: light) { pre { background: #f6f8fa; } }
+  pre code { background: none; border: none; padding: 0; color: var(--text); font-size: 14px; }
+  .c-kw { color: #ff7b72; } .c-fn { color: #d2a8ff; } .c-str { color: #a5d6ff; }
+  .c-com { color: var(--text-faint); font-style: italic; } .c-num { color: #79c0ff; }
+  .c-ok { color: var(--accent-2); } .c-bad { color: var(--danger); }
+  @media (prefers-color-scheme: light) {
+    .c-kw { color: #cf222e; } .c-fn { color: #8250df; } .c-str { color: #0a3069; } .c-num { color: #0550ae; }
+  }
+  .code-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-faint); margin: 18px 0 -8px;
+  }
+
+  .box {
+    margin: 20px 0; padding: 16px 20px; border-radius: 12px;
+    border: 1px solid var(--border); border-left-width: 4px; background: var(--bg-card);
+  }
+  .box .tag { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+  .box p:first-of-type { margin-top: 4px; }
+  .box p:last-child { margin-bottom: 0; }
+  .box.tip { border-left-color: var(--accent-2); }
+  .box.tip .tag { color: var(--accent-2); }
+  .box.warn { border-left-color: var(--warn); }
+  .box.warn .tag { color: var(--warn); }
+  .box.danger { border-left-color: var(--danger); }
+  .box.danger .tag { color: var(--danger); }
+  .box.note { border-left-color: var(--accent); }
+  .box.note .tag { color: var(--accent); }
+  .box.analogy { border-left-color: #d2a8ff; }
+  .box.analogy .tag { color: #d2a8ff; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0; }
+  @media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+  .split .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--bg-card); }
+  .split .card.cmd { border-top: 3px solid var(--cmd); }
+  .split .card.qry { border-top: 3px solid var(--qry); }
+  .split .card h4 { margin-top: 0; font-size: 18px; }
+  .split .card.cmd h4 { color: var(--cmd); }
+  .split .card.qry h4 { color: var(--qry); }
+  .split .card ul { padding-left: 18px; margin: 8px 0 0; font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: none; }
+
+  .diagram {
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre;
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; overflow-x: auto; color: var(--text-dim); margin: 18px 0;
+  }
+  .kicker { color: var(--text-dim); font-size: 15px; margin: 2px 0 18px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 22px 0; }
+  @media (max-width: 640px) { .stat-row { grid-template-columns: 1fr; } }
+  .stat {
+    border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: var(--bg-card);
+  }
+  .stat .big { font-size: 26px; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+  .ladder { counter-reset: step; margin: 20px 0; padding: 0; list-style: none; }
+  .ladder li {
+    position: relative; padding: 14px 18px 14px 60px; margin: 12px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .ladder li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 16px; top: 14px; width: 30px; height: 30px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 15px;
+  }
+  .ladder li strong { display: block; margin-bottom: 3px; }
+
+  .timeline { margin: 20px 0; padding: 0; list-style: none; }
+  .timeline li {
+    position: relative; padding: 12px 18px 12px 110px; margin: 10px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .timeline li .yr {
+    position: absolute; left: 16px; top: 14px;
+    font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--accent);
+  }
+  .timeline li strong { display: block; margin-bottom: 2px; }
+  .timeline li span.desc { font-size: 15px; color: var(--text-dim); }
+  @media (max-width: 640px) {
+    .timeline li { padding-left: 18px; padding-top: 38px; }
+  }
+
+  footer { padding: 40px 0 60px; color: var(--text-faint); font-size: 14px; }
+  footer h3 { color: var(--text-dim); font-size: 15px; }
+  footer a { color: var(--text-dim); }
+  footer ul { padding-left: 20px; }
+
+  .tldr {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(126,231,135,0.06));
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin: 24px 0;
+  }
+  .tldr .tag { color: var(--accent); font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+  .tldr p { margin: 8px 0 0; font-size: 16px; }
+
+  /* ===== 모바일 대응 (mobile) ===== */
+  html { -webkit-text-size-adjust: 100%; }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px; }
+    header.hero { padding: 48px 0 34px; }
+    h1 { font-size: clamp(25px, 7.2vw, 34px); }
+    .lede { font-size: 17px; }
+    .quote-hero { font-size: 15px; padding: 11px 15px; }
+    .pill { font-size: 12px; padding: 5px 11px; }
+    main { padding: 6px 0 56px; }
+    section { padding: 26px 0; }
+    h2.sec { font-size: clamp(21px, 5.6vw, 26px); }
+    h2.sec .num { font-size: 13px; padding: 2px 8px; margin-right: 9px; }
+    h3 { font-size: 18px; }
+
+    /* 긴 식별자(innodb_flush_log_at_trx_commit 등)가 표·문단을 밀어내지 않도록 */
+    /* 긴 토큰은 code 안에만 있으므로 줄바꿈 허용은 code로 한정한다.
+       셀 전체에 걸면 'PostgreSQL'이 글자 단위로 쪼개진다. */
+    code { overflow-wrap: anywhere; }
+    th, td { padding: 9px 10px; font-size: 14px; }
+    th { font-size: 12px; }
+    td code, th code { font-size: 0.82em; }
+
+    pre { padding: 14px 15px; }
+    pre, pre code { font-size: 13px; }
+    .diagram { font-size: 11px; padding: 15px; line-height: 1.45; }
+    .box { padding: 14px 16px; }
+    .tldr { padding: 17px 18px; }
+    .tldr p { font-size: 15px; }
+    .stat .big { font-size: 23px; }
+    .ladder li { padding: 13px 15px 13px 52px; }
+    .ladder li::before { left: 13px; top: 13px; width: 27px; height: 27px; font-size: 14px; }
+    nav.toc { padding: 18px 18px; margin: 26px 0; }
+    footer { padding: 30px 0 48px; }
+
+    /* index.html 카드 */
+    a.card { padding: 17px 18px; }
+    a.card h3 { font-size: 19px; }
+    a.card .date { margin-left: 0; width: 100%; order: 3; }
+    a.card .desc, a.card .quote { font-size: 14px; }
+  }
+
+  /* ===== 목록 back-link ===== */
+  .backlink {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    color: var(--text-dim); margin-bottom: 20px;
+    padding: 5px 12px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft);
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .backlink:hover { color: var(--accent); border-color: var(--accent); }
+  footer .backlink { margin: 26px 0 0; }
+</style>
+</head>
+<body>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="wrap">
+    <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+    <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
+    <h1>멱등성<br>같은 요청이 두 번 와도, 세상은 한 번만 바뀐다</h1>
+    <p class="lede">결제 버튼을 눌렀는데 응답이 안 온다. 다시 누르면 두 번 결제될까, 아니면 한 번도 안 됐을까? 이 질문에 "알 수 없다"라고 답할 수밖에 없는 이유와, 그럼에도 시스템을 안전하게 만드는 방법.</p>
+    <p class="quote-hero">💬 <strong>"'한 번만 실행될 것'이라는 가정은 분산 시스템에서 상당히 비싼 가정이다. At-most-once, At-least-once, Exactly-once까지 알아봅시다."</strong></p>
+    <div class="meta-row">
+      <span class="pill">☕ 읽는 데 ~25분</span>
+      <span class="pill">🕰️ 1870 수학 → 2017 Kafka EOS</span>
+      <span class="pill">🐍 Django·Celery 레시피 포함</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TOC ============ -->
+<div class="wrap">
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#intro">어느 날의 타임아웃</a></li>
+      <li><a href="#definition">멱등성이란 무엇인가</a></li>
+      <li><a href="#network">네트워크가 숨기는 세 가지</a></li>
+      <li><a href="#two-generals">두 장군 문제 — 불가능성의 증명</a></li>
+      <li><a href="#guarantees">세 가지 전달 보장</a></li>
+      <li><a href="#kafka">그런데 Kafka는 exactly-once를 판다?</a></li>
+      <li><a href="#http-recipe">레시피 ① HTTP API — 멱등성 키</a></li>
+      <li><a href="#worker-recipe">레시피 ② 백그라운드 워커</a></li>
+      <li><a href="#patterns">멱등하게 만드는 4가지 패턴</a></li>
+      <li><a href="#cheatsheet">한 장 요약 치트시트</a></li>
+    </ol>
+  </nav>
+</div>
+
+<main class="wrap">
+
+  <!-- ============ 00 ============ -->
+  <section id="intro">
+    <h2 class="sec"><span class="num">00</span>어느 날의 타임아웃</h2>
+    <p class="kicker">모든 재시도 버튼 뒤에는 같은 딜레마가 있다</p>
+    <p>사용자가 10,000원 결제 버튼을 눌렀다. 프론트엔드는 <code>POST /payments</code>를 보냈고… 30초가 지나도록 응답이 없다. 타임아웃. 이제 코드는 선택해야 한다.</p>
+    <ul>
+      <li><strong>재시도하지 않는다</strong> → 사실은 서버까지 요청이 못 갔던 거라면, 결제가 유실된다. 사용자는 "눌렀는데 왜 안 돼요?"라고 문의한다.</li>
+      <li><strong>재시도한다</strong> → 사실은 서버가 결제를 처리했는데 응답만 못 돌아온 거라면, <strong>이중 결제</strong>가 된다. 사용자는 환불을 요구하고, 회사는 신뢰를 잃는다.</li>
+    </ul>
+    <p>어느 쪽이 맞는지 클라이언트는 <strong>알 방법이 없다</strong>. 응답이 안 왔다는 사실은 "요청이 유실됐다"와 "처리됐는데 응답이 유실됐다"를 구분해 주지 않기 때문이다. 이 문서의 주제인 <strong>멱등성(idempotency)</strong>은 이 딜레마를 정면으로 푸는 대신 우회한다 — <em>"몇 번 실행돼도 한 번 실행한 것과 같게"</em> 만들어서, 재시도를 마음 놓고 할 수 있게 하는 것이다.</p>
+    <div class="box note">
+      <span class="tag">이 문서가 답하는 것</span>
+      <p>① 왜 "한 번만 실행될 것"은 보장할 수 없는 비싼 가정인가 ② at-most-once / at-least-once / exactly-once는 정확히 뭐가 다른가 ③ exactly-once가 불가능하다면 Kafka가 파는 "exactly-once"는 무엇인가 ④ 우리 Django·Celery 코드를 멱등하게 만드는 실전 레시피. 다 읽으면 "재시도해도 되나?"라는 질문에 스스로 답할 수 있다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 01 ============ -->
+  <section id="definition">
+    <h2 class="sec"><span class="num">01</span>멱등성이란 무엇인가</h2>
+    <p class="kicker">수학에서 빌려온 150년 넘은 단어</p>
+    <div class="box note">
+      <span class="tag">📎 용어: 멱등(idempotent)</span>
+      <p><strong>멱등한 연산</strong> = 한 번 적용하든 여러 번 적용하든 <strong>결과 상태가 같은</strong> 연산. 수학 기호로는 <code>f(f(x)) = f(x)</code>. 한자로 '멱(冪)'은 거듭제곱이라는 뜻으로, "거듭해도(冪) 같다(等)"로 기억하면 된다. 영어 idempotent는 라틴어 idem(같은)과 potens(힘)에서 온 말로 — "몇 번을 거듭제곱해도 자기 자신과 같다"는 뜻을 담아 — 1870년 수학자 벤저민 퍼스(Benjamin Peirce)가 대수학에서 만든 용어다.</p>
+    </div>
+    <p>코드로 보면 바로 감이 온다.</p>
+<pre><code><span class="c-fn">abs</span>(<span class="c-fn">abs</span>(-<span class="c-num">5</span>)) == <span class="c-fn">abs</span>(-<span class="c-num">5</span>)   <span class="c-com"># 절댓값: 멱등 ✅ 몇 번 씌워도 5</span>
+
+x = <span class="c-num">5</span>       <span class="c-com"># 대입: 멱등 ✅ 열 번 실행해도 x는 5</span>
+x += <span class="c-num">1</span>      <span class="c-com"># 증가: 비멱등 ❌ 실행 횟수만큼 결과가 달라진다</span></code></pre>
+    <div class="box analogy">
+      <span class="tag">🛗 비유: 엘리베이터 버튼</span>
+      <p>엘리베이터 호출 버튼은 멱등하다 — 조급하게 다섯 번 눌러도 엘리베이터는 한 대만 온다. 반면 자판기 버튼은 비멱등하다 — 다섯 번 누르면(돈이 있다면) 콜라가 다섯 캔 나온다. 시스템 설계에서 우리가 원하는 것은 자판기가 아니라 엘리베이터다.</p>
+    </div>
+
+    <h3>HTTP는 이 개념을 프로토콜에 새겨 놓았다</h3>
+    <p>HTTP 표준(RFC 9110 §9.2.2)은 메서드별로 멱등성을 명시한다. "같은 요청을 여러 번 보냈을 때 서버에 의도된 효과가 한 번 보낸 것과 같으면 멱등"이라고 정의하고, 이렇게 분류한다.</p>
+    <table>
+      <thead><tr><th>메서드</th><th>멱등?</th><th>왜</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET</code> / <code>HEAD</code></td><td>✅ (나아가 '안전(safe)' — 상태를 아예 안 바꾸는 더 강한 성질)</td><td>읽기만 하고 상태를 바꾸지 않는다</td></tr>
+        <tr><td><code>PUT</code></td><td>✅</td><td>"이 값으로 <strong>교체</strong>하라" — 두 번 교체해도 같은 값</td></tr>
+        <tr><td><code>DELETE</code></td><td>✅</td><td>두 번 지워도 "없는 상태"는 같다 (두 번째는 404여도 <strong>서버 상태</strong>는 동일)</td></tr>
+        <tr><td><code>POST</code></td><td>❌</td><td>"<strong>새로 만들어라</strong>" — 두 번 보내면 두 개 생긴다</td></tr>
+      </tbody>
+    </table>
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해: 멱등 = 같은 응답</span>
+      <p>멱등성은 <strong>서버 상태</strong>에 대한 약속이지 <strong>응답</strong>에 대한 약속이 아니다. <code>DELETE</code>를 두 번 보내면 첫 번째는 200, 두 번째는 404를 받을 수 있다 — 그래도 멱등하다. 리소스가 없는 상태라는 결과가 같기 때문이다. 또 하나: 클라이언트·프록시가 <code>GET</code>·<code>PUT</code>을 자동 재시도할 수 있는 근거가 바로 이 명세다. 반대로 명세는 <code>POST</code> 같은 비멱등 메서드의 자동 재시도를 막지만, 현실에서는 프록시나 커넥션 재사용 실패 등으로 <code>POST</code>도 중복 도달할 수 있다 — 뒤에서 볼 멱등성 키가 필요한 또 하나의 이유다.</p>
+    </div>
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각</span>
+      <p>멱등성이 왜 중요한지는 한 문장으로 요약된다: <strong>멱등해야 재시도가 안전하다</strong>. 그리고 다음 섹션에서 보겠지만, 분산 시스템에서 재시도는 선택이 아니라 필수다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 02 ============ -->
+  <section id="network">
+    <h2 class="sec"><span class="num">02</span>네트워크가 숨기는 세 가지</h2>
+    <p class="kicker">왜 "한 번만 실행될 것"은 비싼 가정인가</p>
+    <p>단일 프로세스 안에서 함수를 호출하면 결과는 둘 중 하나다 — 성공하거나, 예외가 나거나. 그런데 <strong>분산 시스템</strong>(여러 컴퓨터가 네트워크로 통신하며 하나의 일을 하는 시스템 — 프론트↔백엔드, 백엔드↔결제사 API, 웹서버↔큐↔워커 전부 해당)에서 원격 호출의 결과는 <strong>셋</strong>이다. 성공, 실패, 그리고 <strong>모름</strong>.</p>
+    <div class="diagram">클라이언트                            서버
+    │                                  │
+    │── POST /payments (10,000원) ────▶│  ✅ 결제 처리 완료
+    │                                  │
+    │   ✗ ◀──────── 200 OK ────────────│  응답이 도중에 유실
+    │                                  │
+    │  (타임아웃… 성공인지 실패인지        │
+    │   클라이언트는 알 수 없다)           │
+    │                                  │
+    │── POST /payments (재시도) ───────▶│  💸 결제가 한 번 더!</div>
+    <p>타임아웃 순간 실제로 벌어졌을 수 있는 일은 — 00에서 본 두 경우에 하나를 더해 — 세 가지고, 클라이언트 입장에서는 <strong>전부 똑같이 보인다</strong>.</p>
+    <ol>
+      <li><strong>요청이 유실됐다</strong> — 재시도해야 한다.</li>
+      <li><strong>처리된 뒤 응답만 유실됐다</strong> — 재시도하면 중복이다.</li>
+      <li><strong>서버가 그냥 느리다</strong> — 아직 처리 중인데 재시도가 도착하면 같은 요청이 동시에 두 번 처리될 수 있다.</li>
+    </ol>
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰</span>
+      <p>"응답을 못 받았다"는 "처리되지 않았다"가 아니다. <strong>요청의 전달 여부와 처리 여부를 클라이언트가 확정할 수 없다는 것</strong> — 이것이 분산 시스템의 근본 조건이고, "한 번만 실행될 것"이라는 가정이 비싼 이유다. 이 가정 위에 지은 코드는 네트워크가 완벽할 때만 옳다. 그리고 네트워크는 완벽하지 않다.</p>
+    </div>
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각</span>
+      <p>이 "모름"은 우리 스택 모든 경계에서 발생한다. 브라우저→nginx, nginx→gunicorn(응답이 늦으면 gunicorn이 처리 중이던 자기 프로세스를 강제 종료한다 — 요청은 처리 중이었는데 응답은 영영 사라진다), Django→결제사 API, Django→SQS→Celery(레시피 ②에서 다룬다). 경계가 하나 늘 때마다 "모름"이 발생할 지점도 하나 는다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 03 ============ -->
+  <section id="two-generals">
+    <h2 class="sec"><span class="num">03</span>두 장군 문제 — 불가능성의 증명</h2>
+    <p class="kicker">이건 엔지니어링 부족이 아니라 수학이다</p>
+    <p>"그럼 확인 응답(ack)을 더 보내면 되지 않나?"라는 생각이 자연스럽게 든다. 이 직관이 왜 틀렸는지를 보여주는 것이 <strong>두 장군 문제(Two Generals Problem)</strong>다. 1975년 아코윤루(Akkoyunlu) 등의 논문에서 제기됐고, 1978년 짐 그레이(Jim Gray)가 데이터베이스 교과서적 노트에서 '두 장군 역설'이라는 이름을 붙였다.</p>
+    <p>두 장군이 계곡을 사이에 두고 각자의 언덕에 진을 쳤다. <strong>동시에 공격해야만</strong> 이긴다. 연락 수단은 계곡(적진)을 통과하는 전령뿐인데, 전령은 붙잡힐 수 있다 — 즉 <strong>메시지가 유실될 수 있는 채널</strong>이다.</p>
+    <div class="diagram">장군 A                              장군 B
+  │── "새벽에 공격" ─────────────────▶│  받았다. 그런데…
+  │                                  │  A는 내가 받은 걸 모른다.
+  │◀──────────── "확인!" ────────────│  나 혼자 공격하게 될지도?
+  │  받았다. 그런데 B는                │
+  │  내 확인이 도착한 걸 모른다…        │
+  │── "확인의 확인!" ────────────────▶│  (무한 반복…)
+  │                                  │
+  어느 쪽도 "상대가 확실히 안다"에
+  도달하지 못한다 — 마지막 전령은
+  언제나 유실됐을 수 있으므로</div>
+    <p>어떤 프로토콜을 쓰든 <strong>마지막으로 보낸 메시지</strong>는 유실됐을 수 있고, 보낸 쪽은 그 메시지가 도착했는지 알 수 없다. 확인을 아무리 겹쳐도 이 구조는 사라지지 않는다. 메시지 시스템에 대입하면: 보낸 쪽은 "도착했는가"를 알아야 재전송 여부를 정할 수 있는데, 그 "앎"이 바로 장군들이 끝내 도달하지 못한 합의다. 따라서 유실 가능한 채널 위에서 두 노드가 "정확히 한 번"에 대해 <strong>완전한 합의에 도달하는 것은 수학적으로 불가능</strong>하다는 것이 증명되어 있다.</p>
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰: exactly-once delivery는 불가능하다</span>
+      <p>메시지가 유실될 수 있는 네트워크에서, 유한한 횟수의 메시지로 "정확히 한 번 <strong>전달</strong>"을 보장하는 것은 불가능하다. 이것은 더 좋은 라이브러리나 더 큰 예산으로 해결되는 문제가 아니라 정리(theorem)다. 그렇다면 실전 시스템들은 이 불가능 앞에서 무엇을 골랐을까 — 다음 섹션에서 본다.</p>
+    </div>
+    <div class="box note">
+      <span class="tag">📎 그럼 TCP는 뭐지?</span>
+      <p>TCP도 재전송과 수신 측 중복 제거(패킷마다 붙는 순번)로 <strong>한 연결 안에서</strong> 신뢰성 있는 전달을 흉내 낸다 — 다음 두 섹션에서 배울 "재시도 + 중복 걸러내기" 조합의 원조 격이다. 하지만 연결이 끊기고 다시 맺어지면 순번이 처음부터 다시 시작되어, 서버는 새 요청이 "이전 연결에서 이미 받은 것"인지 알 길이 없다. 타임아웃 후 애플리케이션이 새 연결로 재시도하는 상황이 바로 그 지점이고, 그래서 애플리케이션 레벨의 멱등성이 따로 필요하다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 04 ============ -->
+  <section id="guarantees">
+    <h2 class="sec"><span class="num">04</span>세 가지 전달 보장</h2>
+    <p class="kicker">유실과 중복, 둘 중 하나는 골라야 한다</p>
+    <p>exactly-once delivery가 불가능하다면, 현실의 메시지 시스템이 고를 수 있는 선택지는 두 개다. 재시도를 <strong>안 하거나</strong>(유실 감수), 재시도를 <strong>하거나</strong>(중복 감수).</p>
+    <div class="split">
+      <div class="card cmd">
+        <h4>📤 At-most-once — 최대 한 번</h4>
+        <p style="font-size:15px;margin:4px 0 0">보내고 확인하지 않는다(fire-and-forget). 실패해도 재시도 없음.</p>
+        <ul>
+          <li>중복 없음 ✅ / <strong>유실 가능</strong> ❌</li>
+          <li>구현이 가장 단순하고 빠르다</li>
+          <li>예: 접속 로그, 실시간 지표처럼 하나쯤 빠져도 되는 데이터</li>
+        </ul>
+      </div>
+      <div class="card qry">
+        <h4>📬 At-least-once — 최소 한 번</h4>
+        <p style="font-size:15px;margin:4px 0 0">확인 응답(ack)이 올 때까지 재시도한다.</p>
+        <ul>
+          <li>유실 없음 ✅ / <strong>중복 가능</strong> ❌ (ack만 유실된 경우)</li>
+          <li>업무 데이터의 사실상 표준 선택</li>
+          <li>예: 결제, 주문, DM 발송 — 단, <strong>받는 쪽이 멱등해야</strong> 안전</li>
+        </ul>
+      </div>
+    </div>
+    <p>세 번째인 <strong>exactly-once(정확히 한 번)</strong>는 "전달" 수준에서는 불가능하므로, 시스템 전체를 설계해서 <strong>효과가 정확히 한 번인 것처럼</strong> 만드는 목표 상태를 가리키는 말로 쓰인다. 공식은 이미 나왔다:</p>
+    <div class="tldr">
+      <span class="tag">분산 시스템의 기본 공식</span>
+      <p><strong>at-least-once 전달 + 멱등한 처리 = 사실상의 exactly-once.</strong> 유실은 재시도로 막고, 재시도가 만드는 중복은 멱등성으로 무해하게 만든다. 어려운 보장(정확히 한 번 전달)을 포기하는 대신, 달성 가능한 두 가지를 조합하는 것이다.</p>
+    </div>
+    <table>
+      <thead><tr><th>보장</th><th>유실</th><th>중복</th></tr></thead>
+      <tbody>
+        <tr><td><strong>at-most-once</strong></td><td>가능 ❌</td><td>없음 ✅</td></tr>
+        <tr><td><strong>at-least-once</strong></td><td>없음 ✅</td><td>가능 ❌</td></tr>
+        <tr><td><strong>exactly-once (효과 기준)</strong></td><td>없음 ✅</td><td>발생하되 <strong>무해화</strong> ✅</td></tr>
+      </tbody>
+    </table>
+    <div class="box analogy">
+      <span class="tag">📮 비유: 등기 우편</span>
+      <p>일반 우편은 at-most-once다 — 부치고 잊는다, 가끔 사라진다. 등기처럼 <strong>수취 확인(ack)이 돌아올 때까지 다시 부치기</strong>는 at-least-once다 — 반드시 도착하지만 같은 편지가 두 통 올 수 있다. exactly-once처럼 보이게 하려면? 받는 사람이 편지 봉투의 일련번호를 보고 <strong>이미 읽은 편지는 버리면</strong> 된다. 그 "일련번호 확인"이 다음 섹션부터 나오는 멱등성 장치들이다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 05 ============ -->
+  <section id="kafka">
+    <h2 class="sec"><span class="num">05</span>그런데 Kafka는 "exactly-once"를 판다?</h2>
+    <p class="kicker">불가능하다더니 — delivery와 processing은 다른 말이다</p>
+    <p>Kafka(카프카)는 대용량 메시지를 디스크 로그에 쌓아두고 여러 소비자(컨슈머)가 읽어가게 하는 메시지 브로커다. 메시지는 <strong>토픽(topic)</strong>이라는 이름 붙은 로그에 쌓이고, 각 토픽은 병렬 처리를 위해 여러 <strong>파티션(partition)</strong>으로 쪼개진다 — 순서(그리고 곧 나올 순번)는 파티션 안에서만 보장된다. 2017년 Kafka 0.11이 "exactly-once semantics(EOS)"를 발표했을 때 "불가능하다는 걸 해냈다고?"라는 논쟁이 벌어졌다. 답은: Kafka가 보장하는 것은 정확히 한 번의 <strong>전달(delivery)</strong>이 아니라 정확히 한 번의 <strong>처리 효과(processing)</strong>다. 내부를 보면 방금 배운 공식 그대로다.</p>
+    <h3>부품 ① 멱등 프로듀서 — 시퀀스 번호로 중복 제거</h3>
+    <p>프로듀서(메시지를 보내는 쪽)는 브로커로부터 고유한 프로듀서 ID(PID)를 받고, 파티션마다 메시지에 0, 1, 2, … 순번을 붙여 보낸다. 브로커는 "마지막으로 저장한 순번 + 1"인 메시지만 받아들인다.</p>
+    <div class="diagram">Producer(PID=7)                Broker
+   │── msg(seq=41) ────────────▶│  41 = 40+1 → 저장 ✅
+   │   ✗ ◀── ack 유실            │
+   │── msg(seq=41) 재전송 ──────▶│  41 ≤ 마지막(41)
+   │◀───────── ack ─────────────│  → 중복, 버리고 ack만 🗑</div>
+    <p>재전송(at-least-once)은 그대로 두고, <strong>받는 쪽에서 순번으로 중복을 판별해 버리는</strong> 것 — 등기 우편 비유의 일련번호가 정확히 이것이다. Kafka 3.0부터는 이 동작(<code>enable.idempotence=true</code>, <code>acks=all</code>)이 기본값이다.</p>
+    <h3>부품 ② 트랜잭션 — "읽고-처리하고-쓰기"를 원자적으로</h3>
+    <p>"A 토픽에서 읽어서 → 가공해서 → B 토픽에 쓰고 → 어디까지 읽었는지(오프셋 — 파티션 안에서 내가 읽은 위치) 기록"하는 파이프라인을 생각하자. 오프셋 기록도 사실은 Kafka 내부 토픽에 쓰는 것이라, B 토픽 쓰기와 오프셋 기록을 <strong>하나의 트랜잭션</strong> — 원자적(atomic) 단위, 즉 전부 반영되거나 전부 취소되거나 둘 중 하나 — 으로 묶을 수 있다. 중간에 죽으면 쓰기와 오프셋이 함께 취소되고, 재시작한 컨슈머는 이전 위치부터 다시 읽어 다시 처리한다 — 미완성 쓰기는 버려지므로 결과는 한 번 처리한 것과 같다. 이것이 KIP-98(Kafka Improvement Proposal 98)이 정의한 EOS의 전체 그림이다.</p>
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해: "Kafka 쓰면 exactly-once 자동 해결"</span>
+      <p>Kafka의 EOS는 <strong>Kafka 토픽 사이의 파이프라인 안에서만</strong> 성립한다. 컨슈머가 메시지를 읽어 외부 세계(DB 업데이트, 이메일 발송, 결제 API 호출)에 부수효과를 일으키는 순간, 그 부분의 멱등성은 다시 여러분의 숙제가 된다. 마법의 스위치가 아니라 "우리 공식이 아주 잘 구현된 사례"로 이해해야 한다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 06 ============ -->
+  <section id="http-recipe">
+    <h2 class="sec"><span class="num">06</span>레시피 ① HTTP API — 멱등성 키</h2>
+    <p class="kicker">POST를 안전하게 재시도하는 업계 표준 패턴</p>
+    <p><code>POST</code>는 본질적으로 비멱등하다. 이걸 멱등하게 만드는 표준 관행이 <strong>멱등성 키(idempotency key)</strong>다. 결제 업계의 Stripe가 대중화했고, 현재 IETF에서 <code>Idempotency-Key</code> HTTP 헤더로 표준화가 진행 중이다. 동작 원리는 세 줄로 요약된다.</p>
+    <ol class="ladder">
+      <li><strong>클라이언트가 요청마다 고유 키를 만든다</strong>UUID(사실상 충돌하지 않는 랜덤 식별자 — 128비트 중 122비트가 난수다)를 생성해 <code>Idempotency-Key</code> 헤더에 담아 보낸다. 재시도할 때는 <strong>같은 키</strong>를 다시 보낸다.</li>
+      <li><strong>서버는 처음 본 키면 처리하고, 키와 함께 응답을 저장한다</strong>Stripe는 첫 요청의 상태 코드와 응답 본문을 통째로 저장한다 — 성공이든 실패든.</li>
+      <li><strong>이미 본 키면 처리하지 않고 저장해 둔 응답을 재생한다</strong>클라이언트는 몇 번을 재시도해도 항상 같은 응답을 받고, 결제는 한 번만 일어난다. Stripe는 24시간이 지난 키를 정리한다.</li>
+    </ol>
+    <p class="code-label">❌ 나쁜 예 — 재시도가 이중 결제가 되는 뷰</p>
+<pre><code><span class="c-kw">class</span> <span class="c-fn">PaymentView</span>(APIView):
+    <span class="c-kw">def</span> <span class="c-fn">post</span>(self, request):
+        <span class="c-com"># 타임아웃 후 재시도가 오면 Payment가 하나 더 생긴다</span>
+        payment = Payment.objects.<span class="c-fn">create</span>(
+            user=request.user,
+            amount=request.data[<span class="c-str">"amount"</span>],
+        )
+        <span class="c-fn">charge_card</span>(payment)
+        <span class="c-kw">return</span> <span class="c-fn">Response</span>({<span class="c-str">"id"</span>: payment.id})</code></pre>
+    <p class="code-label">✅ 좋은 예 — 멱등성 키 + DB 유니크 제약</p>
+<pre><code><span class="c-kw">class</span> <span class="c-fn">Payment</span>(models.Model):
+    <span class="c-com"># unique=True가 최후의 방어선: 동시 요청이 겹쳐도 DB가 중복을 거부한다</span>
+    idempotency_key = models.<span class="c-fn">CharField</span>(max_length=<span class="c-num">255</span>, unique=<span class="c-kw">True</span>)
+    ...
+
+<span class="c-kw">class</span> <span class="c-fn">PaymentView</span>(APIView):
+    <span class="c-kw">def</span> <span class="c-fn">post</span>(self, request):
+        key = request.headers[<span class="c-str">"Idempotency-Key"</span>]  <span class="c-com"># 클라이언트가 생성한 UUID</span>
+        payment, created = Payment.objects.<span class="c-fn">get_or_create</span>(
+            idempotency_key=key,
+            defaults={<span class="c-str">"user"</span>: request.user,
+                      <span class="c-str">"amount"</span>: request.data[<span class="c-str">"amount"</span>]},
+        )
+        <span class="c-kw">if</span> created:
+            <span class="c-fn">charge_card</span>(payment)          <span class="c-com"># 첫 요청만 실제 결제</span>
+        <span class="c-kw">return</span> <span class="c-fn">Response</span>({<span class="c-str">"id"</span>: payment.id})  <span class="c-com"># 재시도도 같은 응답</span></code></pre>
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각</span>
+      <p>핵심은 <strong>애플리케이션 코드가 아니라 DB 제약이 중복을 막게 하는 것</strong>이다. "먼저 조회해서 없으면 만들기"는 결국 SELECT 후 INSERT 두 단계라서, 두 요청이 동시에 조회를 통과하는 레이스 컨디션(경쟁 상태 — 동시 실행의 타이밍에 따라 결과가 달라지는 상황)이 남는다. <code>unique=True</code>가 있으면 그 순간 한쪽이 <code>IntegrityError</code>로 튕기는데, Django의 <code>get_or_create</code>는 이 예외를 잡아 기존 행을 다시 조회해 돌려주는 것까지 알아서 해 준다(단, 위 코드처럼 유니크 필드가 <code>defaults</code>가 아닌 조회 조건 쪽에 있어야 한다). 유니크 제약 없는 멱등성 키는 방어선이 아니라 장식이다.</p>
+    </div>
+    <div class="box warn">
+      <span class="tag">⚠️ 이 코드에도 틈은 있다</span>
+      <p>행을 만든 직후, <code>charge_card</code> 직전에 서버가 죽으면? 이후의 재시도는 전부 <code>created=False</code>가 되어 <strong>결제 없이 성공 응답</strong>을 돌려받는다 — 이중 결제만큼 위험한 "영구 미결제" 상태다. 또 첫 요청이 아직 결제 진행 중일 때 같은 키의 재시도가 도착해도 미완료 작업에 성공처럼 응답하게 된다(Stripe는 이 경우 409로 "처리 중"을 알린다). 실전에서는 <code>status</code> 필드를 <code>pending</code>으로 만들어 두고 결제 성공 시에만 <code>charged</code>로 바꾸는 식으로 상태를 추적한다. "기록과 부수효과 사이의 틈"이라는 이 문제의 정체는 레시피 ②의 경고 박스에서 정면으로 다룬다.</p>
+    </div>
+    <div class="box note">
+      <span class="tag">📎 어디까지 저장하나</span>
+      <p>위 예제는 단순화를 위해 생성된 행을 돌려주지만, Stripe처럼 <strong>응답 전체(상태 코드+본문)를 키와 함께 저장</strong>하는 편이 더 정확하다. 첫 요청이 검증 오류(400)였다면 재시도도 똑같이 400을 받아야 "같은 요청에는 같은 답"이라는 계약이 유지되기 때문이다. 키는 요청 본문과 함께 저장하고, 같은 키에 <strong>다른 본문</strong>이 오면 오류로 거절(IETF 초안 권고는 422)하는 것까지 해야 완성이다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 07 ============ -->
+  <section id="worker-recipe">
+    <h2 class="sec"><span class="num">07</span>레시피 ② 백그라운드 워커 — Celery·SQS</h2>
+    <p class="kicker">큐는 태생이 at-least-once다</p>
+    <p>메시지 큐(작업을 넣어두면 워커가 꺼내 처리하는 대기열)를 쓰는 순간 전달 보장 문제는 남의 일이 아니게 된다. AWS SQS 문서는 표준 큐(기본형 — 순서 보장과 중복 제거를 제공하는 FIFO 큐라는 다른 종류도 있다)에 대해 명시적으로 말한다: <strong>at-least-once delivery</strong> — 드물지만 같은 메시지가 두 번 이상 배달될 수 있으니, <strong>컨슈머 코드가 중복 처리에 안전하도록(=멱등하도록) 설계하라</strong>. 워커가 메시지를 집으면 일정 시간(visibility timeout) 동안 다른 워커에게 안 보이게 숨겨질 뿐, 그 시간 안에 처리 완료(삭제)를 못 하면 메시지는 다시 나타나 다른 워커에게 배달된다.</p>
+    <p>Celery(셀러리 — 파이썬 진영의 대표 작업 큐 프레임워크. 태스크를 큐에 넣으면 웹 요청 밖의 별도 워커 프로세스가 꺼내 실행한다)에는 이 선택이 <code>acks_late</code> 옵션으로 그대로 노출되어 있다. ack(수신 확인 — 큐에게 "이 메시지 처리했으니 지워도 돼"라고 알리는 신호)를 언제 보내느냐의 문제다.</p>
+    <table>
+      <thead><tr><th>설정</th><th>ack 시점</th><th>워커가 도중에 죽으면</th></tr></thead>
+      <tbody>
+        <tr><td><code>acks_late=False</code> (기본값)</td><td>작업 <strong>시작 전</strong></td><td>메시지는 이미 지워짐 → <strong>작업 유실</strong> (at-most-once 쪽)</td></tr>
+        <tr><td><code>acks_late=True</code></td><td>작업 <strong>완료 후</strong></td><td>메시지 재배달 → <strong>중복 실행</strong> (at-least-once 쪽)</td></tr>
+      </tbody>
+    </table>
+    <p>기본값이 <code>False</code>인 데에도 이유는 있다 — 실행할 때마다 죽는 태스크가 무한 재배달되며 워커를 계속 쓰러뜨리는 것을 막는 보수적인 선택이다.</p>
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰: 옵션이 보장을 바꾼다</span>
+      <p>유실이 싫어서 <code>acks_late=True</code>를 켜는 순간, 여러분은 at-least-once를 선택한 것이고 <strong>그 태스크는 반드시 멱등해야 한다</strong>는 계약서에 서명한 것이다. 태스크를 멱등하게 만들지 않고 <code>acks_late</code>만 켜면, 유실 버그를 중복 버그로 바꿔치기했을 뿐이다.</p>
+    </div>
+    <p class="code-label">❌ 나쁜 예 — 재배달되면 DM이 두 번 나간다</p>
+<pre><code>@app.task(acks_late=<span class="c-kw">True</span>)
+<span class="c-kw">def</span> <span class="c-fn">send_dm</span>(user_id, message):
+    <span class="c-com"># visibility timeout 초과, 워커 재시작… 재배달 경로는 많다</span>
+    api.<span class="c-fn">send_direct_message</span>(user_id, message)</code></pre>
+    <p class="code-label">✅ 좋은 예 — 처리 기록 테이블로 중복을 걸러낸다</p>
+<pre><code><span class="c-com"># 큐에 넣는 쪽 — 발행 시점에 고유 ID를 만들어 메시지에 실어 보낸다</span>
+send_dm.<span class="c-fn">delay</span>(user_id, message, dispatch_id=<span class="c-fn">str</span>(<span class="c-fn">uuid4</span>()))
+
+<span class="c-com"># 소비하는 쪽 — 재배달돼도 같은 dispatch_id가 함께 실려 온다</span>
+@app.task(acks_late=<span class="c-kw">True</span>)
+<span class="c-kw">def</span> <span class="c-fn">send_dm</span>(user_id, message, dispatch_id):
+    <span class="c-com"># dispatch_id 컬럼에는 unique 제약이 걸려 있다</span>
+    <span class="c-kw">try</span>:
+        DmDispatch.objects.<span class="c-fn">create</span>(dispatch_id=dispatch_id)
+    <span class="c-kw">except</span> IntegrityError:
+        <span class="c-kw">return</span>  <span class="c-com"># 이미 처리한 메시지의 재배달 → 조용히 무시</span>
+    api.<span class="c-fn">send_direct_message</span>(user_id, message)</code></pre>
+    <div class="box warn">
+      <span class="tag">⚠️ 완벽하지 않다 — 기록과 부수효과 사이의 틈</span>
+      <p>위 코드에도 틈은 있다. 기록을 <strong>먼저</strong> 남기면 "기록 직후, 발송 직전"에 죽었을 때 재배달이 걸러져 DM이 영영 안 나간다(유실). 기록을 <strong>나중에</strong> 남기면 "발송 직후, 기록 직전"에 죽었을 때 두 번 나간다(중복). 외부 API 호출은 우리 DB 트랜잭션에 묶을 수 없어서 이 틈을 완전히 없앨 수는 없고, 어느 쪽 실패가 덜 아픈지 골라야 한다. 근본 해법은 <strong>외부 API 자체가 멱등성 키를 지원하는 것</strong> — 그러면 레시피 ①의 구조가 API 건너편까지 이어진다. 결제 API들이 멱등성 키를 지원하는 이유가 바로 이것이다.</p>
+    </div>
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각</span>
+      <p>정기 배치(celery beat 등)도 같은 원리다. "매일 새벽 크레딧 정산" 태스크가 장애로 두 번 돌면? <code>UPDATE credits SET balance = balance - used</code>(비멱등)가 아니라, 정산 결과를 (날짜, 워크스페이스) 유니크 키로 <strong>기록</strong>하고 이미 있으면 건너뛰는 구조로 만들어 두면 재실행이 무섭지 않다. "이 태스크, 지금 한 번 더 돌려도 괜찮은가?"에 Yes라고 답할 수 있는 태스크가 좋은 태스크다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 08 ============ -->
+  <section id="patterns">
+    <h2 class="sec"><span class="num">08</span>멱등하게 만드는 4가지 패턴</h2>
+    <p class="kicker">비멱등한 코드를 발견했을 때 꺼내 쓰는 도구 상자</p>
+    <ol class="ladder">
+      <li><strong>패턴 1 — 애초에 멱등한 연산으로 표현한다</strong>"증가시켜라"(<code>balance += 100</code>) 대신 "이 값으로 만들어라"(<code>plan = 'premium'</code>). 상대 변경(delta)은 비멱등, 절대값 대입은 멱등이다. 요구사항을 절대값으로 다시 쓸 수 있는지부터 살핀다.</li>
+      <li><strong>패턴 2 — 멱등성 키 + 결과 저장</strong>연산 자체를 멱등하게 못 만들면(결제·발송처럼 실행 자체가 부수효과일 때), 요청마다 고유 키를 붙이고 처리 기록을 남겨 재실행을 걸러낸다. 레시피 ①·②가 이 패턴이다.</li>
+      <li><strong>패턴 3 — 조건부 업데이트</strong>"현재 상태가 X일 때만 Y로 바꿔라"를 쿼리에 넣는다. 두 번째 실행은 조건 불일치로 0건 갱신 — 자연스럽게 멱등해진다. 상태 머신(정해진 상태들 사이를 정해진 규칙으로만 이동하는 모델 — pending → paid → shipped)이 있는 도메인에서 특히 강력하다.</li>
+      <li><strong>패턴 4 — 유니크 제약을 최후의 방어선으로</strong>패턴 1~3이 코드 실수·레이스로 뚫려도 DB가 마지막에 막아준다 — 레시피 ①의 <code>unique=True</code>가 바로 이 패턴이다.</li>
+    </ol>
+    <p class="code-label">SQL로 보는 패턴 1 · 3 · 4</p>
+<pre><code><span class="c-com">-- 패턴 1: 절대값 대입 (몇 번 실행해도 같은 상태)</span>
+<span class="c-kw">UPDATE</span> users <span class="c-kw">SET</span> plan = <span class="c-str">'premium'</span> <span class="c-kw">WHERE</span> id = <span class="c-num">42</span>;
+
+<span class="c-com">-- 패턴 3: 조건부 업데이트 (두 번째 실행은 0 rows)</span>
+<span class="c-kw">UPDATE</span> orders <span class="c-kw">SET</span> status = <span class="c-str">'paid'</span>
+ <span class="c-kw">WHERE</span> id = <span class="c-num">42</span> <span class="c-kw">AND</span> status = <span class="c-str">'pending'</span>;
+
+<span class="c-com">-- 패턴 4: 유니크 제약 + UPSERT (중복 삽입을 DB가 무시)</span>
+<span class="c-kw">INSERT INTO</span> credits (order_id, amount) <span class="c-kw">VALUES</span> (<span class="c-num">42</span>, <span class="c-num">100</span>)
+    <span class="c-kw">ON CONFLICT</span> (order_id) <span class="c-kw">DO NOTHING</span>;</code></pre>
+    <div class="box note">
+      <span class="tag">📎 용어: UPSERT</span>
+      <p><strong>UPSERT</strong> = UPDATE + INSERT의 합성어. "없으면 넣고, 있으면 갱신(또는 무시)"을 <strong>DB가 원자적으로</strong> 처리하는 구문. PostgreSQL에서는 <code>INSERT ... ON CONFLICT</code>로 쓴다. 조회와 삽입을 코드에서 두 단계로 하면 그 사이에 다른 요청이 끼어들 수 있지만, UPSERT는 그 틈이 없다.</p>
+    </div>
+    <div class="box warn">
+      <span class="tag">⚠️ 조건부 업데이트의 함정: 갱신 0건 ≠ 성공</span>
+      <p>패턴 3에서 0건 갱신은 "이미 처리됨"일 수도, "그런 주문이 없음"일 수도 있다. 후속 동작(영수증 발송 등)이 걸려 있다면 <code>cursor.rowcount</code>를 확인하고 0일 때 현재 상태를 조회해 분기해야 한다. 멱등성은 "조용히 두 번 하지 않기"이지 "결과 확인 생략하기"가 아니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 09 ============ -->
+  <section id="cheatsheet">
+    <h2 class="sec"><span class="num">09</span>한 장 요약 치트시트</h2>
+    <div class="tldr">
+      <span class="tag">💬 "한 번만 실행될 것이라는 가정은 비싸다" — 왜?</span>
+      <p><strong>네트워크에서는 "응답 없음"이 "처리 안 됨"을 뜻하지 않기 때문이다.</strong> 두 장군 문제가 증명하듯 "정확히 한 번 전달"은 수학적으로 불가능하다. 그래서 고를 수 있는 것은 <strong>at-most-once</strong>(재시도 안 함, 유실 감수 — 로그·지표)와 <strong>at-least-once</strong>(ack까지 재시도, 중복 감수 — 업무 데이터의 기본값)뿐이고, <strong>exactly-once</strong>는 at-least-once 전달 위에 <strong>멱등한 처리</strong>를 얹어 만들어내는 효과 기준의 보장이다 (Kafka EOS도 이 구조다).</p>
+    </div>
+    <table>
+      <thead><tr><th>기억할 것</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>멱등성 정의</td><td>1번 하든 N번 하든 결과 상태가 같다 — <code>f(f(x)) = f(x)</code>. 멱등해야 재시도가 안전하다</td></tr>
+        <tr><td>HTTP 메서드</td><td><code>GET</code>·<code>PUT</code>·<code>DELETE</code>는 멱등, <code>POST</code>는 아님 (RFC 9110). POST 재시도에는 멱등성 키</td></tr>
+        <tr><td>원격 호출의 결과</td><td>성공 / 실패 / <strong>모름</strong> — 셋이다</td></tr>
+        <tr><td>멱등성 키</td><td>클라이언트가 UUID 생성 → 서버는 첫 응답을 저장, 같은 키엔 재생 (Stripe 방식, IETF 표준화 중)</td></tr>
+        <tr><td>Celery <code>acks_late</code></td><td>False(기본) = 죽으면 유실 / True = 죽으면 중복 → <strong>켰다면 태스크를 멱등하게</strong></td></tr>
+        <tr><td>SQS 표준 큐</td><td>at-least-once가 명세다. 중복 배달은 버그가 아니라 계약 — 컨슈머가 걸러야 한다</td></tr>
+        <tr><td>4가지 패턴</td><td>① 절대값 대입 ② 멱등성 키+기록 ③ 조건부 UPDATE ④ 유니크 제약(최후의 방어선)</td></tr>
+        <tr><td>설계 질문</td><td>새 API·태스크를 만들 때마다: <strong>"이거 지금 한 번 더 실행돼도 괜찮은가?"</strong></td></tr>
+      </tbody>
+    </table>
+    <h3>연표로 다시 보기</h3>
+    <ol class="timeline" style="list-style:none;padding:0">
+      <li><span class="yr">1870</span><strong>'idempotent' 조어</strong><span class="desc">수학자 벤저민 퍼스가 대수학 논문(Linear Associative Algebra)에서 만든 용어</span></li>
+      <li><span class="yr">1975</span><strong>두 장군 문제 제기</strong><span class="desc">아코윤루 등, 유실 채널 위 두 프로세스의 합의 불가능성을 논문으로 제시</span></li>
+      <li><span class="yr">1978</span><strong>'두 장군 역설' 명명</strong><span class="desc">짐 그레이가 Notes on Data Base Operating Systems에서 이름을 붙이고 대중화</span></li>
+      <li><span class="yr">2017</span><strong>Kafka 0.11 — EOS</strong><span class="desc">KIP-98: 멱등 프로듀서(PID+순번) + 트랜잭션. Kafka 3.0(2021)부터 멱등 프로듀서 기본값</span></li>
+      <li><span class="yr">2021~</span><strong><code>Idempotency-Key</code> 표준화</strong><span class="desc">Stripe·PayPal 관행을 IETF HTTP API 워킹그룹이 표준 초안으로 작성 중</span></li>
+    </ol>
+  </section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="wrap">
+  <h3>더 읽어보기 (출처)</h3>
+  <ul>
+    <li>IETF — <a href="https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2">RFC 9110: HTTP Semantics §9.2.2 Idempotent Methods</a> (멱등 메서드 정의와 분류 검증)</li>
+    <li>Stripe — <a href="https://docs.stripe.com/api/idempotent_requests">API Reference: Idempotent requests</a> · <a href="https://stripe.com/blog/idempotency">Designing robust and predictable APIs with idempotency</a> (키 생성·응답 저장·24시간 정리 정책 검증)</li>
+    <li>IETF HTTPAPI WG — <a href="https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/">The Idempotency-Key HTTP Header Field (draft)</a> (표준화 진행 상황 검증)</li>
+    <li>Confluent — <a href="https://www.confluent.io/blog/exactly-once-semantics-are-possible-heres-how-apache-kafka-does-it/">Exactly-once Semantics Are Possible: Here's How Kafka Does It</a> · <a href="https://cwiki.apache.org/confluence/display/KAFKA/KIP-98+-+Exactly+Once+Delivery+and+Transactional+Messaging">KIP-98</a> (PID·시퀀스 번호·트랜잭션·0.11/3.0 기본값 검증)</li>
+    <li>Wikipedia — <a href="https://en.wikipedia.org/wiki/Two_Generals%27_Problem">Two Generals' Problem</a> (1975 제기·1978 명명·불가능성 증명 검증) · <a href="https://en.wikipedia.org/wiki/Idempotence">Idempotence</a> (1870 벤저민 퍼스 조어 검증)</li>
+    <li>AWS — <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html">SQS visibility timeout</a> (at-least-once·중복 배달 명세 검증)</li>
+    <li>Celery — <a href="https://docs.celeryq.dev/en/stable/userguide/tasks.html">Tasks 문서 (<code>Task.acks_late</code>)</a> · <a href="https://docs.celeryq.dev/en/main/getting-started/backends-and-brokers/sqs.html">Using Amazon SQS</a> (<code>acks_late</code> 기본값·동작 검증)</li>
+  </ul>
+  <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+</footer>
+
+<!-- TOC 현재 위치 하이라이트 -->
+<script>
+  const links = [...document.querySelectorAll('nav.toc a')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      const a = map.get(e.target.id);
+      if (a && e.isIntersecting) {
+        links.forEach(l => { l.style.color = ''; l.style.fontWeight = ''; });
+        a.style.color = 'var(--accent)';
+        a.style.fontWeight = '700';
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>
