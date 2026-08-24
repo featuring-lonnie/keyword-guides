@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<title>PATCH — HTTP 메서드는 왜 다섯 개뿐일까</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-soft: #161b22;
+    --bg-card: #1a2029;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --text-faint: #6b7683;
+    --accent: #58a6ff;
+    --accent-2: #7ee787;
+    --cmd: #ff9e64;
+    --qry: #79c0ff;
+    --warn: #f0b429;
+    --danger: #f47067;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+    --maxw: 860px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f6f8fa;
+      --bg-card: #ffffff;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --text-dim: #57606a;
+      --text-faint: #8c959f;
+      --accent: #0969da;
+      --accent-2: #1a7f37;
+      --cmd: #bc4c00;
+      --qry: #0550ae;
+      --warn: #9a6700;
+      --danger: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(1200px 400px at 50% -50%, rgba(88,166,255,0.10), transparent);
+  }
+  .eyebrow {
+    font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 18px;
+    font-weight: 800; letter-spacing: -0.02em;
+  }
+  .lede { font-size: 19px; color: var(--text-dim); max-width: 680px; margin: 0; }
+  .quote-hero {
+    margin: 22px 0 0; padding: 12px 18px; border-left: 3px solid var(--accent);
+    background: var(--bg-soft); border-radius: 0 8px 8px 0; font-size: 16px; color: var(--text-dim);
+  }
+  .quote-hero strong { color: var(--text); }
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .pill {
+    font-size: 13px; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  nav.toc {
+    margin: 34px 0; padding: 22px 24px; background: var(--bg-soft);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  nav.toc h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-faint); margin: 0 0 14px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 34px; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  nav.toc li { margin: 5px 0; break-inside: avoid; }
+  nav.toc a { color: var(--text); text-decoration: none; font-size: 15px; }
+  nav.toc a:hover { color: var(--accent); }
+
+  main { padding: 10px 0 80px; }
+  section { padding: 34px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2.sec {
+    font-size: clamp(24px, 4vw, 32px); font-weight: 800; letter-spacing: -0.02em;
+    margin: 0 0 6px; scroll-margin-top: 20px;
+  }
+  h2.sec .num {
+    display: inline-block; font-family: var(--mono); font-size: 15px; color: var(--accent);
+    background: rgba(88,166,255,0.12); border-radius: 8px; padding: 2px 10px; margin-right: 12px;
+    vertical-align: middle; font-weight: 600;
+  }
+  h3 { font-size: 20px; font-weight: 700; margin: 30px 0 10px; letter-spacing: -0.01em; }
+  h4 { font-size: 16px; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+  p { margin: 12px 0; }
+  strong { color: var(--text); font-weight: 700; }
+  a { color: var(--accent); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 7px 0; }
+
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    padding: 1.5px 6px; border-radius: 6px; color: var(--accent-2);
+  }
+  pre {
+    background: #0b0e13; border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; margin: 16px 0; position: relative;
+    font-size: 14px; line-height: 1.6;
+  }
+  @media (prefers-color-scheme: light) { pre { background: #f6f8fa; } }
+  pre code { background: none; border: none; padding: 0; color: var(--text); font-size: 14px; }
+  .c-kw { color: #ff7b72; } .c-fn { color: #d2a8ff; } .c-str { color: #a5d6ff; }
+  .c-com { color: var(--text-faint); font-style: italic; } .c-num { color: #79c0ff; }
+  .c-ok { color: var(--accent-2); } .c-bad { color: var(--danger); }
+  @media (prefers-color-scheme: light) {
+    .c-kw { color: #cf222e; } .c-fn { color: #8250df; } .c-str { color: #0a3069; } .c-num { color: #0550ae; }
+  }
+  .code-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-faint); margin: 18px 0 -8px;
+  }
+
+  .box {
+    margin: 20px 0; padding: 16px 20px; border-radius: 12px;
+    border: 1px solid var(--border); border-left-width: 4px; background: var(--bg-card);
+  }
+  .box .tag { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+  .box p:first-of-type { margin-top: 4px; }
+  .box p:last-child { margin-bottom: 0; }
+  .box.tip { border-left-color: var(--accent-2); }
+  .box.tip .tag { color: var(--accent-2); }
+  .box.warn { border-left-color: var(--warn); }
+  .box.warn .tag { color: var(--warn); }
+  .box.danger { border-left-color: var(--danger); }
+  .box.danger .tag { color: var(--danger); }
+  .box.note { border-left-color: var(--accent); }
+  .box.note .tag { color: var(--accent); }
+  .box.analogy { border-left-color: #d2a8ff; }
+  .box.analogy .tag { color: #d2a8ff; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0; }
+  @media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+  .split .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--bg-card); }
+  .split .card.cmd { border-top: 3px solid var(--cmd); }
+  .split .card.qry { border-top: 3px solid var(--qry); }
+  .split .card h4 { margin-top: 0; font-size: 18px; }
+  .split .card.cmd h4 { color: var(--cmd); }
+  .split .card.qry h4 { color: var(--qry); }
+  .split .card ul { padding-left: 18px; margin: 8px 0 0; font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: none; }
+
+  .diagram {
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre;
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; overflow-x: auto; color: var(--text-dim); margin: 18px 0;
+  }
+  .kicker { color: var(--text-dim); font-size: 15px; margin: 2px 0 18px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 22px 0; }
+  @media (max-width: 640px) { .stat-row { grid-template-columns: 1fr; } }
+  .stat {
+    border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: var(--bg-card);
+  }
+  .stat .big { font-size: 26px; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+  .ladder { counter-reset: step; margin: 20px 0; padding: 0; list-style: none; }
+  .ladder li {
+    position: relative; padding: 14px 18px 14px 60px; margin: 12px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .ladder li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 16px; top: 14px; width: 30px; height: 30px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 15px;
+  }
+  .ladder li strong { display: block; margin-bottom: 3px; }
+
+  .timeline { margin: 20px 0; padding: 0; list-style: none; }
+  .timeline li {
+    position: relative; padding: 12px 18px 12px 110px; margin: 10px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .timeline li .yr {
+    position: absolute; left: 16px; top: 14px;
+    font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--accent);
+  }
+  .timeline li strong { display: block; margin-bottom: 2px; }
+  .timeline li span.desc { font-size: 15px; color: var(--text-dim); }
+  @media (max-width: 640px) {
+    .timeline li { padding-left: 18px; padding-top: 38px; }
+  }
+
+  footer { padding: 40px 0 60px; color: var(--text-faint); font-size: 14px; }
+  footer h3 { color: var(--text-dim); font-size: 15px; }
+  footer a { color: var(--text-dim); }
+  footer ul { padding-left: 20px; }
+
+  .tldr {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(126,231,135,0.06));
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin: 24px 0;
+  }
+  .tldr .tag { color: var(--accent); font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+  .tldr p { margin: 8px 0 0; font-size: 16px; }
+
+  /* ===== 모바일 대응 (mobile) ===== */
+  html { -webkit-text-size-adjust: 100%; }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px; }
+    header.hero { padding: 48px 0 34px; }
+    h1 { font-size: clamp(25px, 7.2vw, 34px); }
+    .lede { font-size: 17px; }
+    .quote-hero { font-size: 15px; padding: 11px 15px; }
+    .pill { font-size: 12px; padding: 5px 11px; }
+    main { padding: 6px 0 56px; }
+    section { padding: 26px 0; }
+    h2.sec { font-size: clamp(21px, 5.6vw, 26px); }
+    h2.sec .num { font-size: 13px; padding: 2px 8px; margin-right: 9px; }
+    h3 { font-size: 18px; }
+
+    /* 긴 식별자(innodb_flush_log_at_trx_commit 등)가 표·문단을 밀어내지 않도록 */
+    /* 긴 토큰은 code 안에만 있으므로 줄바꿈 허용은 code로 한정한다.
+       셀 전체에 걸면 'PostgreSQL'이 글자 단위로 쪼개진다. */
+    code { overflow-wrap: anywhere; }
+    th, td { padding: 9px 10px; font-size: 14px; }
+    th { font-size: 12px; }
+    td code, th code { font-size: 0.82em; }
+
+    pre { padding: 14px 15px; }
+    pre, pre code { font-size: 13px; }
+    .diagram { font-size: 11px; padding: 15px; line-height: 1.45; }
+    .box { padding: 14px 16px; }
+    .tldr { padding: 17px 18px; }
+    .tldr p { font-size: 15px; }
+    .stat .big { font-size: 23px; }
+    .ladder li { padding: 13px 15px 13px 52px; }
+    .ladder li::before { left: 13px; top: 13px; width: 27px; height: 27px; font-size: 14px; }
+    nav.toc { padding: 18px 18px; margin: 26px 0; }
+    footer { padding: 30px 0 48px; }
+
+    /* index.html 카드 */
+    a.card { padding: 17px 18px; }
+    a.card h3 { font-size: 19px; }
+    a.card .date { margin-left: 0; width: 100%; order: 3; }
+    a.card .desc, a.card .quote { font-size: 14px; }
+  }
+
+  /* ===== 목록 back-link ===== */
+  .backlink {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    color: var(--text-dim); margin-bottom: 20px;
+    padding: 5px 12px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft);
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .backlink:hover { color: var(--accent); border-color: var(--accent); }
+  footer .backlink { margin: 26px 0 0; }
+</style></head>
+<body>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="wrap">
+    <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+    <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
+    <h1>PATCH<br>HTTP 메서드는 왜 다섯 개뿐일까</h1>
+    <p class="lede">GET · POST · PUT · PATCH · DELETE. 우리는 이 다섯 개를 마치 알파벳처럼 세트로 외운다. 그런데 이 목록은 누가 정했고, 왜 하필 다섯 개일까? 실제 등록된 HTTP 메서드는 40개가 넘고, 그중 PATCH는 웹이 태어난 지 <strong>19년</strong>이나 지나서야 합류한 늦둥이다.</p>
+    <p class="quote-hero">💬 <strong>"왜 GET, POST, PUT, PATCH, DELETE밖에 없나요? HTTP Method는 고정된 목록이 아님. PATCH가 추가된 것도 비교적 최근임."</strong></p>
+    <div class="meta-row">
+      <span class="pill">☕ 읽는 데 ~30분</span>
+      <span class="pill">🕰️ 1991 GET → 2026 QUERY</span>
+      <span class="pill">🐍 Django·DRF 실무로 연결</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TOC ============ -->
+<div class="wrap">
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#intro">이름만 바꿨는데 전화번호가 사라졌다</a></li>
+      <li><a href="#registry">메서드는 '목록'이 아니라 '레지스트리'다</a></li>
+      <li><a href="#history">GET 하나에서 40개까지 — 그리고 왜 5개만 보이나</a></li>
+      <li><a href="#put-vs-patch">PUT vs PATCH — 새 사진 vs 수정 지시서</a></li>
+      <li><a href="#idempotent">PATCH는 멱등이 아니다</a></li>
+      <li><a href="#formats">지시서의 언어 — Merge Patch vs JSON Patch</a></li>
+      <li><a href="#contract">서버가 지켜야 할 계약 — 원자성과 상태 코드</a></li>
+      <li><a href="#concurrency">동시 수정 — ETag와 If-Match</a></li>
+      <li><a href="#django">Django·DRF 실무 — partial=True 와 '미전송 vs null'</a></li>
+      <li><a href="#new-method">새 메서드는 어떻게 태어나는가 — QUERY 사례</a></li>
+      <li><a href="#cheatsheet">한 장 요약 치트시트</a></li>
+    </ol>
+  </nav>
+</div>
+
+<main class="wrap">
+
+  <!-- ============ 00 ============ -->
+  <section id="intro">
+    <h2 class="sec"><span class="num">00</span>이름만 바꿨는데 전화번호가 사라졌다</h2>
+    <p class="kicker">가장 흔한 첫 만남</p>
+
+    <p>회원 프로필 수정 화면을 만든다. 유저가 이름만 고쳤다. 프론트엔드는 착실하게 바뀐 것만 보낸다.</p>
+
+    <p class="code-label">❌ 나쁜 예 — 부분만 담아 보낸 PUT</p>
+<pre><code><span class="c-kw">PUT</span> /api/v1/users/42
+Content-Type: application/json
+
+{<span class="c-str">"name"</span>: <span class="c-str">"김민수"</span>}</code></pre>
+
+    <p>그리고 배포 다음 날, 고객센터로 문의가 들어온다. <strong>"전화번호랑 이메일이 왜 다 지워졌죠?"</strong></p>
+
+    <p>서버가 버그를 낸 게 아니다. 스펙대로 동작한 것이다. PUT의 본문은 "이 리소스가 <strong>앞으로 이런 모습이어야 한다</strong>"는 <strong>완성된 새 상태</strong>다. <code>phone</code>이 본문에 없다는 말은 "전화번호를 안 보냈다"가 아니라 "<strong>전화번호가 없는 상태로 만들어라</strong>"에 가깝다.</p>
+
+    <p>여기서 자연스러운 질문이 나온다. 그럼 "일부만 바꿔라"는 어떻게 말하지? 바로 그 자리를 메우려고 2010년에 뒤늦게 합류한 메서드가 <strong>PATCH</strong>다. 그런데 이 이야기를 제대로 하려면 그 앞의 더 큰 오해부터 풀어야 한다 — 애초에 HTTP 메서드는 다섯 개가 아니다.</p>
+
+    <div class="box warn">
+      <span class="tag">⚠️ "그런데 우리 DRF에선 안 지워지던데요?"</span>
+      <p>맞다. DRF <code>ModelViewSet</code>의 PUT은 <code>required=True</code> 필드가 빠지면 400을 내고, <code>required=False</code> 필드가 빠지면 <code>validated_data</code>에 그 키가 없어서 <strong>기존 값을 그대로 둔다</strong>. 즉 <strong>DRF는 PUT을 스펙보다 관대하게, 사실상 PATCH처럼 처리한다.</strong> 위 사고는 프레임워크가 막아주지 않는 곳에서 난다 — 직접 <code>put()</code>을 구현했거나, 외부 서비스의 PUT API를 호출하거나, 요청 본문을 모델에 그대로 덮어쓸 때다. <strong>"PUT의 빠진 필드는 지워지는 게 맞다"를 원칙으로 삼되, 내 프레임워크가 실제로 어떻게 처리하는지는 따로 확인해야 한다.</strong></p>
+    </div>
+
+    <div class="box note">
+      <span class="tag">이 문서가 답하는 것</span>
+      <p>① 왜 우리 눈에는 메서드가 다섯 개로만 보이는가 ② PUT과 PATCH는 정확히 무엇이 다른가 ③ PATCH를 실제로 안전하게 구현하려면 무엇을 지켜야 하는가. 다 읽으면 "PATCH 쓰면 되죠?"에서 "이 API의 PATCH는 어떤 지시서 포맷을 받고, 멱등한가?"로 질문이 바뀐다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 01 ============ -->
+  <section id="registry">
+    <h2 class="sec"><span class="num">01</span>메서드는 '목록'이 아니라 '레지스트리'다</h2>
+
+    <p>HTTP 명세는 메서드를 <strong>닫힌 목록</strong>으로 못 박은 적이 한 번도 없다. 프로토콜 문법상 요청의 첫 단어는 그냥 <strong>토큰</strong>(공백·특수문자가 없는 문자열)이면 된다. <code>GET</code>이든 <code>PROPFIND</code>든 <code>BREW</code>든 전송 계층에서는 똑같이 유효하다.</p>
+
+    <p>대신 <strong>IETF</strong>(Internet Engineering Task Force — 인터넷 표준을 논의하고 RFC 문서로 확정하는 국제 기구)는 "누구나 아무 단어나 쓰면 서로 못 알아듣는다"는 문제를 <strong>레지스트리</strong>로 풀었다. <strong>표준의 내용을 정하는 곳이 IETF, 그렇게 정해진 이름들을 명부로 관리하는 곳이 IANA</strong>다. 메서드 이름과 그 의미를 IANA(인터넷 번호 할당 기관)가 관리하는 공개 명부에 등록하게 한 것이다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: IANA 레지스트리</span>
+      <p><strong>IANA</strong>는 포트 번호, 미디어 타입(<code>application/json</code>처럼 <code>Content-Type</code> 헤더에 들어가는 "본문의 형식" 이름), HTTP 상태 코드처럼 <strong>전 세계가 같은 의미로 써야 하는 이름들의 공식 명부</strong>를 관리하는 조직이다. "HTTP Method Registry"는 그중 메서드 담당 명부이고, 새 메서드는 보통 RFC 문서로 의미를 정의한 뒤 여기에 한 줄로 등록된다.</p>
+    </div>
+
+    <p>지금 그 명부에는 <strong>40개</strong>의 메서드가 등록돼 있다. 우리가 아는 다섯 개는 그중 일부일 뿐이다.</p>
+
+    <div class="diagram">IANA HTTP Method Registry — 등록된 40개 중 일부
+
+  우리가 아는 것
+  ────────────────────────────────────────────
+    GET   HEAD   POST   PUT   DELETE
+    OPTIONS   TRACE   CONNECT   PATCH
+
+  WebDAV 계열 — 웹을 공유 파일서버처럼 쓰기 위한 확장
+  ────────────────────────────────────────────
+    PROPFIND   PROPPATCH   MKCOL   COPY   MOVE
+    LOCK   UNLOCK   BIND   REBIND   UNBIND
+
+  버전관리 계열 (RFC 3253)
+  ────────────────────────────────────────────
+    CHECKIN   CHECKOUT   UNCHECKOUT   MERGE   REPORT
+    UPDATE   LABEL   VERSION-CONTROL   MKWORKSPACE
+
+  그 밖에
+  ────────────────────────────────────────────
+    ACL   MKCALENDAR   SEARCH   ORDERPATCH
+    QUERY      ← 2026년에 막 합류</div>
+
+    <div class="stat-row">
+      <div class="stat"><div class="big">40</div><div class="lbl">IANA에 등록된 HTTP 메서드</div></div>
+      <div class="stat"><div class="big">8</div><div class="lbl">HTTP 핵심 명세(RFC 9110)가 정의하는 메서드</div></div>
+      <div class="stat"><div class="big">2</div><div class="lbl">HTML <code>&lt;form&gt;</code>이 보낼 수 있는 메서드</div></div>
+    </div>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰</span>
+      <p>메서드가 다섯 개로 보이는 건 HTTP의 제약이 아니라 <strong>우리가 사는 생태계의 제약</strong>이다. 왜 하필 그 다섯 개인지, 서로 맞물린 네 가지 이유를 다음 절에서 하나씩 본다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 02 ============ -->
+  <section id="history">
+    <h2 class="sec"><span class="num">02</span>GET 하나에서 40개까지 — 그리고 왜 5개만 보이나</h2>
+    <p class="kicker">메서드 목록은 계속 자랐고, 심지어 줄어든 적도 있다</p>
+
+    <ol class="timeline" style="list-style:none;padding:0">
+      <li><span class="yr">1991</span><strong>HTTP/0.9 — 메서드는 <code>GET</code> 하나</strong><span class="desc">요청 한 줄이 전부였다. 헤더도, 상태 코드도, 다른 메서드도 없었다.</span></li>
+      <li><span class="yr">1996</span><strong>RFC 1945 (HTTP/1.0) — GET · HEAD · POST</strong><span class="desc">본문에서 정식으로 정의한 건 이 셋. PUT · DELETE · LINK · UNLINK는 "추가로 쓰이기도 하는 것들"로 부록에 언급되는 데 그쳤다. 이 넷 중 다음 판에서 본문으로 올라가는 건 PUT · DELETE 둘뿐이다.</span></li>
+      <li><span class="yr">1997</span><strong>RFC 2068 (HTTP/1.1) — OPTIONS · TRACE 신설, PUT · DELETE 승격</strong><span class="desc">규범 본문이 정의한 건 일곱 개 — CONNECT는 아직 없다. 그리고 <b>PATCH · LINK · UNLINK가 부록 §19.6에 실린다. PATCH의 첫 등장이다.</b> 이 부록은 "존재는 알되 다른 구현에 있으리라 믿지는 말라"고 못 박은 자리다.</span></li>
+      <li><span class="yr">1999</span><strong>RFC 2616 — CONNECT 추가, <em>PATCH</em> · LINK · UNLINK <em>삭제</em></strong><span class="desc">명세가 삭제 사유를 직접 적었다 — "정의는 됐으나 널리 구현되지 않았다". 메서드 목록은 늘기만 하는 게 아니라 <b>줄기도 한다</b>. 그 사례가 바로 <b>PATCH 자신</b>이다.</span></li>
+      <li><span class="yr">1999~2007</span><strong>WebDAV 계열 — 수십 개가 한꺼번에</strong><span class="desc">웹을 읽기 전용 문서 저장소가 아니라 <b>공유 파일 서버</b>처럼 쓰려는 시도. PROPFIND · MKCOL · COPY · MOVE · LOCK 등이 이때 RFC로 정의됐다(IANA 레지스트리 자체는 2014년에 신설되며 이들을 소급 수록했다).</span></li>
+      <li><span class="yr">2010</span><strong>RFC 5789 — PATCH 등장</strong><span class="desc">L. Dusseault, J. Snell. 1997년 부록에서 잘려나간 지 <b>13년 만의 복귀</b>다. 이번엔 부록이 아니라 자기 이름을 단 독립 RFC로.</span></li>
+      <li><span class="yr">2013</span><strong>RFC 6902 JSON Patch · Rails 4</strong><span class="desc">PATCH의 본문 포맷이 표준화되고, Rails 4가 <code>update</code> 라우트의 기본 동사를 PUT에서 PATCH로 바꾸면서 널리 퍼졌다.</span></li>
+      <li><span class="yr">2014</span><strong>RFC 7396 — JSON Merge Patch</strong><span class="desc">"바뀐 필드만 담은 JSON"이라는, 우리가 실제로 가장 많이 쓰는 그 방식이 표준이 됐다.</span></li>
+      <li><span class="yr">2022</span><strong>RFC 9110 (HTTP Semantics) — 핵심 8개 재정의</strong><span class="desc">GET · HEAD · POST · PUT · DELETE · CONNECT · OPTIONS · TRACE. 1999년에 정리된 여덟 개가 그대로다.</span></li>
+      <li><span class="yr">2026</span><strong>RFC 10008 — QUERY</strong><span class="desc">J. Reschke, J. Snell, M. Bishop. 목록은 지금 이 순간에도 자라고 있다.</span></li>
+    </ol>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해</span>
+      <p>"PATCH는 REST 5대 메서드 중 하나" — 실제로는 <strong>핵심 명세의 규범 본문에 한 번도 들어가 본 적이 없는 확장 메서드</strong>다. RFC 9110이 정의하는 8개에도, 그 전신인 RFC 2616의 8개에도 PATCH는 없다. 그뿐 아니라 1997년 부록에 실렸던 PATCH는 <strong>1999년에 "널리 구현되지 않았다"는 이유로 잘려나갔다</strong>. 지금 우리가 쓰는 PATCH는 그로부터 11년 뒤 <strong>독립 RFC로 다시 제안돼 살아남은 두 번째 시도</strong>다. 표준이 된다는 게 한 번에 끝나는 일이 아니라는 뜻이기도 하다.</p>
+    </div>
+
+    <h3>그래서 왜 우리 눈엔 다섯 개만 보이나</h3>
+
+    <p>등록된 40개 중 다섯 개만 일상에 남은 데는 서로 맞물린 이유가 있다.</p>
+
+    <ol class="ladder">
+      <li><strong>브라우저 폼이 두 개만 보낸다</strong>HTML <code>&lt;form&gt;</code>의 <code>method</code> 속성은 <strong>GET과 POST만</strong> 받는다. <code>method="DELETE"</code>라고 써도 브라우저는 알아듣지 못하고 GET으로 처리한다. 그래서 오래된 웹 프레임워크들은 <code>_method=PATCH</code> 같은 숨은 필드를 POST에 실어 보내는 우회책(<strong>method override</strong>)을 쓴다. 서버 앞단의 미들웨어가 POST 요청에서 그 필드(또는 <code>X-HTTP-Method-Override</code> 헤더)를 발견하면 요청의 메서드를 PATCH로 바꿔치기한 뒤 라우터에 넘긴다 — 네트워크에는 POST로 나가고, 애플리케이션 코드에는 PATCH로 도착하는 셈이다.</li>
+      <li><strong>중간 장비가 모르는 메서드를 막는다</strong>브라우저와 애플리케이션 서버 사이에는 대개 중계 장비가 여러 겹 있다. 요청을 대신 받아 뒤쪽 서버로 넘겨주는 <strong>리버스 프록시</strong>(nginx가 대표적), 그 길목에서 공격성 요청을 걸러내는 <strong>WAF</strong>(웹 애플리케이션 방화벽), 회사 방화벽 같은 것들이다. 이 중 일부는 "아는 메서드만 통과"라는 화이트리스트로 동작해서, 잘 알려지지 않은 메서드는 애플리케이션 서버에 닿기 전에 중간에서 잘린다.</li>
+      <li><strong>CRUD 교육이 4대 1로 맞춰 가르친다</strong>Create · Read · Update · Delete를 POST · GET · PUT/PATCH · DELETE에 짝지어 외우는 게 표준 커리큘럼이다. 이 틀에 안 들어가는 메서드는 배울 계기가 없다.</li>
+      <li><strong>WebDAV 계열은 용도가 좁았다</strong>PROPFIND · MKCOL 같은 메서드는 "웹을 네트워크 드라이브처럼" 쓰는 시나리오용이다. 그 시나리오 자체가 주류가 되지 못했다.</li>
+    </ol>
+  </section>
+
+  <!-- ============ 03 ============ -->
+  <section id="put-vs-patch">
+    <h2 class="sec"><span class="num">03</span>PUT vs PATCH — 새 사진 vs 수정 지시서</h2>
+
+    <p>RFC 5789가 PATCH를 도입하며 설명한 차이는 한 문장으로 요약된다. PUT의 본문은 <strong>리소스의 수정된 버전 그 자체</strong>이고, PATCH의 본문은 <strong>현재 리소스를 어떻게 고칠지 적은 지시문의 집합</strong>이다. 뒤에 나오는 멱등성·Content-Type·원자성·상태 코드는 전부 이 한 줄에서 파생된 결과일 뿐이니, 헷갈릴 때마다 여기로 돌아오면 된다.</p>
+
+    <div class="split">
+      <div class="card cmd">
+        <h4>📄 PUT — 교체</h4>
+        <p style="font-size:15px;margin:4px 0 0">"이 리소스는 앞으로 <strong>이 모습</strong>이다"</p>
+        <ul>
+          <li>본문 = 완성된 새 상태</li>
+          <li>빠진 필드 = "그 값은 없음"</li>
+          <li>같은 요청을 100번 보내도 결과 동일</li>
+          <li>본문 타입: <code>application/json</code> 등 리소스 표현</li>
+        </ul>
+      </div>
+      <div class="card qry">
+        <h4>📝 PATCH — 지시</h4>
+        <p style="font-size:15px;margin:4px 0 0">"현재 상태에서 <strong>이렇게 바꿔라</strong>"</p>
+        <ul>
+          <li>본문 = 변경 지시서</li>
+          <li>안 적힌 필드 = "건드리지 마라"</li>
+          <li>지시 내용에 따라 반복하면 결과가 달라질 수 있음</li>
+          <li>본문 타입: <code>application/merge-patch+json</code> 등 <strong>패치 포맷</strong></li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="code-label">✅ 좋은 예 — 이름만 바꾸는 PATCH</p>
+<pre><code><span class="c-kw">PATCH</span> /api/v1/users/42
+Content-Type: application/merge-patch+json
+
+{<span class="c-str">"name"</span>: <span class="c-str">"김민수"</span>}       <span class="c-com">← phone·email은 언급이 없으므로 그대로 유지된다</span></code></pre>
+
+    <p class="code-label">✅ 같은 결과를 PUT으로 하려면 — 전부 다 보내야 한다</p>
+<pre><code><span class="c-kw">PUT</span> /api/v1/users/42
+Content-Type: application/json
+
+{
+  <span class="c-str">"name"</span>: <span class="c-str">"김민수"</span>,
+  <span class="c-str">"phone"</span>: <span class="c-str">"010-1111-2222"</span>,   <span class="c-com">← 안 바꾸더라도 반드시 실어야 한다</span>
+  <span class="c-str">"email"</span>: <span class="c-str">"minsu@example.com"</span>
+}</code></pre>
+
+    <div class="box analogy">
+      <span class="tag">🏨 비유</span>
+      <p>호텔 예약을 바꾼다고 하자. PUT은 <strong>예약 카드를 새로 써서 통째로 갈아 끼우는 것</strong>이다. 새 카드에 조식란을 안 적었다면 조식은 사라진다. PATCH는 <strong>"체크아웃만 하루 미뤄주세요"라는 메모 한 장</strong>이다. 나머지 항목은 건드리지 않는다. 다만 이 메모를 실수로 두 번 보내면 이틀이 밀린다. <strong>그래서 실무에서는 메모를 "하루 미뤄주세요"가 아니라 "체크아웃을 8월 3일로 해주세요"라고 쓴다</strong> — 같은 메모가 열 번 도착해도 결과가 같다. 왜 이 차이가 중요한지가 다음 절의 주제다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 04 ============ -->
+  <section id="idempotent">
+    <h2 class="sec"><span class="num">04</span>PATCH는 멱등이 아니다</h2>
+    <p class="kicker">IANA 레지스트리에 Safe: No, Idempotent: No 로 등록돼 있는 이유</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 안전(safe)과 멱등(idempotent)</span>
+      <p><strong>안전한 메서드</strong>는 서버 상태를 바꾸지 않는, 읽기 전용 의미를 가진 메서드다(GET · HEAD · OPTIONS · TRACE). <strong>멱등한 메서드</strong>는 상태를 바꾸긴 하지만 <strong>같은 요청을 두 번 이상 보내도 한 번 보낸 것과 결과가 같은</strong> 메서드다(PUT·DELETE 그리고 안전한 메서드 전부). 멱등성은 "응답이 같다"가 아니라 "<strong>서버에 남는 상태가 같다</strong>"는 뜻이다.</p>
+    </div>
+
+    <p>멱등성이 중요한 건 <strong>재시도</strong> 때문이다. 클라이언트가 요청을 보냈는데 응답이 오기 전에 네트워크가 끊겼다고 하자. 서버가 처리를 마쳤는지 클라이언트는 알 방법이 없다. 이때 메서드가 멱등하다면 그냥 다시 보내면 된다. 멱등하지 않다면, 재시도는 두 번 실행의 위험을 진다.</p>
+
+    <p>재시도는 내가 코드를 안 짜도 이미 일어나고 있다. <strong>유저가 버튼을 두 번 누르고</strong>, 모바일 앱의 HTTP 라이브러리가 타임아웃 시 자동으로 다시 보내고, 프론트엔드 데이터 라이브러리가 실패한 요청을 백오프로 재시도하고, Celery 같은 작업 큐가 실패한 태스크를 재실행한다. 그래서 "이 엔드포인트를 두 번 보내면 어떻게 되나"는 선택 과목이 아니라 <strong>모든 상태 변경 엔드포인트가 답해야 하는 질문</strong>이다.</p>
+
+    <p>PATCH가 멱등하지 않은 이유는 <strong>지시서에 '상대적인 변경'을 적을 수 있기 때문</strong>이다. 배열 끝에 값을 덧붙이는 JSON Patch 연산을 보자.</p>
+
+    <div class="box note">
+      <span class="tag">📎 잠깐 — PATCH 본문에는 표준 문법이 두 가지 있다</span>
+      <p>하나는 <strong>Merge Patch</strong>(<code>application/merge-patch+json</code>) — 바꿀 필드만 담은 평범한 JSON이고, 앞 절 예제가 이것이다. 다른 하나는 <strong>JSON Patch</strong>(<code>application/json-patch+json</code>) — <code>{"op": "연산", "path": "위치", "value": 값}</code> 객체를 순서대로 나열한 배열이다. 멱등성이 깨지는 장면은 JSON Patch에서 가장 선명하므로 여기서 먼저 쓴다. 두 포맷의 전체 비교는 바로 다음 절에 있다.</p>
+    </div>
+
+    <p class="code-label">⚠️ 멱등하지 않은 PATCH — 두 번 보내면 두 번 붙는다</p>
+<pre><code><span class="c-kw">PATCH</span> /api/v1/users/42
+Content-Type: application/json-patch+json
+
+[{<span class="c-str">"op"</span>: <span class="c-str">"add"</span>, <span class="c-str">"path"</span>: <span class="c-str">"/tags/-"</span>, <span class="c-str">"value"</span>: <span class="c-str">"vip"</span>}]
+<span class="c-com">                          ↑ "-" 는 "배열의 끝에 추가"라는 뜻</span>
+
+<span class="c-com"># 1회: tags = ["신규", "vip"]</span>
+<span class="c-com"># 2회: tags = ["신규", "vip", "vip"]   ← 상태가 달라졌다</span></code></pre>
+
+    <p class="code-label">✅ 멱등한 PATCH — 절대값을 지정하면 몇 번을 보내도 같다</p>
+<pre><code><span class="c-kw">PATCH</span> /api/v1/users/42
+Content-Type: application/merge-patch+json
+
+{<span class="c-str">"grade"</span>: <span class="c-str">"vip"</span>}
+
+<span class="c-com"># 1회: grade = "vip"</span>
+<span class="c-com"># 2회: grade = "vip"   ← 동일</span></code></pre>
+
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각</span>
+      <p>명세가 "PATCH는 멱등하지 않다"고 말하는 건 <strong>"멱등할 수 없다"가 아니라 "멱등하다고 가정하지 마라"</strong>는 뜻이다. 절대값만 담는 Merge Patch 방식으로 API를 설계하면 실질적으로 멱등해진다.</p>
+    </div>
+
+    <table>
+      <thead><tr><th>메서드</th><th>안전(Safe)</th><th>멱등(Idempotent)</th></tr></thead>
+      <tbody>
+        <tr><td><code>GET</code> / <code>HEAD</code></td><td>예</td><td>예</td></tr>
+        <tr><td><code>PUT</code></td><td>아니오</td><td><strong>예</strong> — 본문이 완성된 최종 상태라서</td></tr>
+        <tr><td><code>DELETE</code></td><td>아니오</td><td><strong>예</strong> — 최종 상태가 "없음"으로 같아서</td></tr>
+        <tr><td><code>POST</code></td><td>아니오</td><td>아니오</td></tr>
+        <tr><td><code>PATCH</code></td><td>아니오</td><td><strong>아니오</strong> — 지시서가 상대적일 수 있어서</td></tr>
+        <tr><td><code>QUERY</code></td><td>예</td><td>예</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============ 05 ============ -->
+  <section id="formats">
+    <h2 class="sec"><span class="num">05</span>지시서의 언어 — Merge Patch vs JSON Patch</h2>
+    <p class="kicker">PATCH의 Content-Type은 '리소스의 타입'이 아니라 '지시서의 문법'이다</p>
+
+    <p>PUT에서 <code>Content-Type: application/json</code>은 "본문이 JSON으로 표현된 리소스"라는 뜻이다. PATCH에서는 의미가 다르다. 본문은 리소스가 아니라 지시서이므로, Content-Type은 <strong>그 지시서를 어떤 문법으로 읽어야 하는지</strong>를 가리킨다. 표준화된 문법이 둘 있다.</p>
+
+    <h3>JSON Merge Patch (RFC 7396)</h3>
+    <p>바뀔 필드만 담은 JSON을 그대로 보낸다. 우리가 실무에서 "PATCH 쓴다"고 할 때 대부분 이것이다.</p>
+
+<pre><code>Content-Type: application/merge-patch+json
+
+{
+  <span class="c-str">"name"</span>: <span class="c-str">"김민수"</span>,
+  <span class="c-str">"phone"</span>: <span class="c-kw">null</span>        <span class="c-com">← null 은 "이 키를 삭제하라"는 뜻</span>
+}</code></pre>
+
+    <div class="box warn">
+      <span class="tag">⚠️ Merge Patch의 구조적 한계</span>
+      <p><code>null</code>에 "삭제"라는 의미를 부여했기 때문에, <strong>어떤 필드의 값을 실제 <code>null</code>로 설정하는 것은 Merge Patch로 표현할 수 없다</strong>. "삭제"와 "null로 설정"을 구분해야 하는 도메인이라면 이 포맷은 애초에 맞지 않는다. 또 배열은 부분 수정이 불가능하고 <strong>통째로 교체</strong>된다 — 태그 하나를 추가하려 해도 전체 배열을 다시 보내야 한다.</p>
+    </div>
+
+    <h3>JSON Patch (RFC 6902)</h3>
+    <p>연산을 순서대로 나열한 배열을 보낸다. <code>add</code>·<code>remove</code>·<code>replace</code>·<code>move</code>·<code>copy</code>·<code>test</code> 여섯 가지가 있고, 위치는 JSON Pointer(<code>/tags/0</code> 같은 경로 문법)로 지정한다.</p>
+
+<pre><code>Content-Type: application/json-patch+json
+
+[
+  {<span class="c-str">"op"</span>: <span class="c-str">"test"</span>,    <span class="c-str">"path"</span>: <span class="c-str">"/grade"</span>,  <span class="c-str">"value"</span>: <span class="c-str">"basic"</span>},
+  {<span class="c-str">"op"</span>: <span class="c-str">"replace"</span>, <span class="c-str">"path"</span>: <span class="c-str">"/grade"</span>,  <span class="c-str">"value"</span>: <span class="c-str">"vip"</span>},
+  {<span class="c-str">"op"</span>: <span class="c-str">"remove"</span>,  <span class="c-str">"path"</span>: <span class="c-str">"/tags/0"</span>}
+]
+<span class="c-com"># test 가 실패하면 전체가 적용되지 않는다 — 지시서 안에 조건을 넣을 수 있다</span></code></pre>
+
+    <table>
+      <thead><tr><th>항목</th><th>JSON Merge Patch</th><th>JSON Patch</th></tr></thead>
+      <tbody>
+        <tr><td>표준</td><td>RFC 7396 (2014)</td><td>RFC 6902 (2013)</td></tr>
+        <tr><td>Content-Type</td><td><code>application/merge-patch+json</code></td><td><code>application/json-patch+json</code></td></tr>
+        <tr><td>본문 모양</td><td>바뀐 필드만 담은 JSON 객체</td><td>연산 객체의 배열</td></tr>
+        <tr><td>삭제 표현</td><td>값을 <code>null</code>로</td><td><code>{"op":"remove"}</code></td></tr>
+        <tr><td>값을 null로 설정</td><td><strong>불가능</strong></td><td>가능</td></tr>
+        <tr><td>배열 부분 수정</td><td>불가 — 통째로 교체</td><td>인덱스 단위로 가능</td></tr>
+        <tr><td>조건부 적용</td><td>없음</td><td><code>test</code> 연산</td></tr>
+        <tr><td>읽기 쉬움</td><td>매우 쉬움</td><td>어려움 (사람이 손으로 쓰기 번거롭다)</td></tr>
+      </tbody>
+    </table>
+
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각</span>
+      <p>대부분의 사내 API는 <strong>Merge Patch로 충분하다</strong>. 필드 단위 수정이 전부이고, 프론트엔드가 만들기도 쉽다. JSON Patch가 값을 하는 건 <strong>배열 순서를 다루거나(할 일 목록 재정렬), <strong>읽은 뒤 남이 안 건드렸을 때만 적용되게 하고 싶거나</strong>(<code>test</code> 연산으로 "지금 값이 basic일 때만 vip로 바꿔라"를 지시서 안에 넣을 수 있다 — 이 전략을 낙관적 동시성 제어라 하고 07절에서 자세히 본다), 변경 이력을 그대로 기록·재생해야 할 때</strong>다. 반대로 단순 CRUD에 JSON Patch를 쓰면 클라이언트와 서버 양쪽에 불필요한 복잡도만 얹힌다.</p>
+    </div>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 자주 하는 실수</span>
+      <p>Merge Patch 문법으로 본문을 보내면서 Content-Type만 <code>application/json</code>으로 두는 경우가 압도적으로 많다. 엄밀히는 <strong>어떤 문법의 지시서인지 서버가 알 수 없는 상태</strong>다. 실무에서는 대개 그냥 동작하지만(서버가 Merge Patch로 가정하므로), 외부에 공개하는 API라면 정확한 미디어 타입을 쓰거나 문서에 명시해야 한다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 06 ============ -->
+  <section id="contract">
+    <h2 class="sec"><span class="num">06</span>서버가 지켜야 할 계약 — 원자성과 상태 코드</h2>
+
+    <p>RFC 5789는 PATCH를 구현하는 서버에 <strong>강한 의무</strong> 하나를 부과한다.</p>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 원자성은 선택이 아니라 의무</span>
+      <p>서버는 지시서 전체를 <strong>원자적으로</strong> 적용해야 하며, 부분적으로만 반영된 상태를 절대 외부에 노출해서는 안 된다. 지시서 전체를 적용할 수 없다면 <strong>아무것도 적용하지 않아야</strong> 한다. 지시가 다섯 개인데 셋째에서 실패했다면, 앞의 둘도 되돌려야 한다.</p>
+    </div>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 원자성(atomicity)</span>
+      <p>여러 단계로 이뤄진 작업이 <strong>"전부 성공" 아니면 "전부 실패" 둘 중 하나로만 끝나는 성질</strong>. 중간 상태가 관측되지 않는다는 뜻이기도 하다. 데이터베이스에서 <strong>트랜잭션</strong>(여러 SQL을 한 덩어리로 묶어, 도중에 실패하면 이미 실행된 것까지 전부 취소 — 이 취소를 <strong>롤백</strong>이라 한다 — 해 시작 전 상태로 되돌리는 장치)이 보장하는 바로 그 성질이다.</p>
+    </div>
+
+    <p class="code-label">✅ Django에서 원자성 확보 — 트랜잭션으로 감싼다</p>
+<pre><code><span class="c-kw">from</span> django.db <span class="c-kw">import</span> transaction
+
+<span class="c-kw">class</span> <span class="c-fn">UserViewSet</span>(ModelViewSet):
+    <span class="c-fn">@transaction.atomic</span>          <span class="c-com"># 예외가 나면 이 안의 모든 변경이 롤백된다</span>
+    <span class="c-kw">def</span> <span class="c-fn">partial_update</span>(self, request, *args, **kwargs):
+        <span class="c-kw">return</span> <span class="c-fn">super</span>().<span class="c-fn">partial_update</span>(request, *args, **kwargs)</code></pre>
+
+    <p>먼저 <code>settings.DATABASES[...]["ATOMIC_REQUESTS"]</code>를 확인한다. <strong><code>True</code>면 모든 요청이 이미 트랜잭션 안이라 이 데코레이터는 필요 없다.</strong> 꺼져 있거나 값이 없으면(기본값은 <code>False</code>) 위처럼 명시적으로 감싼다.</p>
+
+    <h3>성공은 어떤 코드로 알릴 것인가</h3>
+    <p>200과 204 둘 다 유효하다. 갱신 결과를 클라이언트가 다시 그려야 하면 <strong>200 + 갱신된 리소스 표현</strong>을, 클라이언트가 이미 결과를 아는 단순 수정이면 <strong>204 No Content</strong>를 쓴다. 어느 쪽이든 <strong>응답에 갱신된 <code>ETag</code>를 같이 실어야</strong> 클라이언트가 곧바로 다음 수정을 걸 수 있다 — 왜 그런지는 다음 절에서 본다.</p>
+
+    <h3>실패를 어떤 코드로 알릴 것인가</h3>
+    <p>"지시서를 못 읽겠다", "읽었는데 지금 상태에 적용할 수 없다", "포맷 자체를 지원하지 않는다"는 서로 다른 실패다. RFC 5789가 권하는 구분은 다음과 같다.</p>
+
+    <table>
+      <thead><tr><th>상태 코드</th><th>언제 쓰는가</th></tr></thead>
+      <tbody>
+        <tr><td><code>400 Bad Request</code></td><td>지시서 자체가 깨졌다 — JSON 파싱 실패, <code>op</code> 누락 등</td></tr>
+        <tr><td><code>409 Conflict</code></td><td>지시서는 유효하나 <strong>현재 리소스 상태에 적용할 수 없다</strong> — 없는 경로를 <code>remove</code> 하려는 경우 등</td></tr>
+        <tr><td><code>412 Precondition Failed</code></td><td><code>If-Match</code> 같은 조건부 헤더가 맞지 않았다 (다음 절 참고)</td></tr>
+        <tr><td><code>415 Unsupported Media Type</code></td><td>서버가 <strong>모르는 패치 포맷</strong>이다 — JSON Patch만 받는데 <code>merge-patch+json</code>이 왔다</td></tr>
+        <tr><td><code>422 Unprocessable Content</code></td><td>문법도 맞고 적용도 가능하지만 <strong>비즈니스 규칙 위반</strong>이다 — 이미 정산된 캠페인의 예산 수정 등</td></tr>
+      </tbody>
+    </table>
+
+    <div class="box warn">
+      <span class="tag">⚠️ DRF는 기본으로 400만 낸다</span>
+      <p>위 표는 "이렇게 구분해서 내라"는 지시인데, DRF에서 <code>serializers.ValidationError</code>는 전부 <strong>400</strong>으로 나간다(파서 미스매치만 415가 자동). <strong>409 · 412 · 422는 직접 예외 클래스를 만들어야 한다.</strong> 이때 중요한 건 코드 숫자보다 <strong>에러 코드 문자열</strong>이다 — 프론트엔드가 메시지 문구를 비교하는 대신 코드로 분기해야, 나중에 문구를 바꿔도 화면이 안 깨진다. 구분이 필요한 실패마다 전용 예외를 하나씩 만드는 게 실무 규칙이다.</p>
+    </div>
+
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각 — Accept-Patch</span>
+      <p>명세는 PATCH를 지원하는 리소스의 <code>OPTIONS</code> 응답에 <code>Accept-Patch: application/merge-patch+json</code> 헤더를 <strong>넣어야 한다(SHOULD)</strong>고 정한다. 415를 반환할 때도 마찬가지다 — 클라이언트가 뭘 보내야 하는지 알게 된다. 대부분의 사내 API는 문서로 대신하지만, 적어도 415와 함께 주는 습관은 들일 만하다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 07 ============ -->
+  <section id="concurrency">
+    <h2 class="sec"><span class="num">07</span>동시 수정 — ETag와 If-Match</h2>
+    <p class="kicker">부분 수정은 안전해 보이지만, 오히려 충돌을 눈에 안 띄게 만든다</p>
+
+    <p>PATCH는 "내가 건드린 필드만 바꾸니까 남과 안 부딪힌다"는 인상을 준다. 서로 다른 필드를 고친다면 실제로 그렇다. 문제는 <strong>같은 필드를 동시에 고칠 때</strong>다.</p>
+
+    <div class="diagram">lost update — 두 사람이 같은 필드를 동시에 고칠 때
+
+  [A]                    [서버]                    [B]
+  ─────────────────────────────────────────────────────
+
+  GET   ───────────▶     grade = "basic"
+                         grade = "basic"     ◀───────   GET
+
+        A와 B 모두 "basic"을 읽은 상태로 각자 화면을 띄웠다
+
+  PATCH grade=vip ─▶     grade = "vip"
+                         grade = "gold"      ◀───────   PATCH grade=gold
+                              ▲
+                     A가 쓴 "vip"는 흔적도 없이 사라졌다
+                     B는 A의 변경을 본 적조차 없다</div>
+
+    <div class="box note">
+      <span class="tag">📎 용어: ETag</span>
+      <p><strong>ETag</strong>는 서버가 리소스의 현재 버전에 붙여주는 <strong>지문(fingerprint)</strong>이다. 내용이 바뀌면 값도 바뀐다. 보통 콘텐츠 해시나 <code>updated_at</code> 타임스탬프로 만든다. 클라이언트는 이 값을 <code>If-Match</code> 헤더에 되돌려 보내 "<strong>내가 읽었을 때 그 버전 그대로일 때만 적용해라</strong>"라고 조건을 걸 수 있다.</p>
+    </div>
+
+    <p class="code-label">✅ 좋은 예 — 읽을 때 받은 지문을 쓸 때 되돌려 보낸다</p>
+<pre><code><span class="c-com"># 1) 읽기 — 서버가 현재 버전의 지문을 준다</span>
+<span class="c-kw">GET</span> /api/v1/users/42
+  → 200 OK
+    ETag: <span class="c-str">"v7-9f2c1a"</span>
+
+<span class="c-com"># 2) 수정 — 그 지문일 때만 적용하라고 조건을 건다</span>
+<span class="c-kw">PATCH</span> /api/v1/users/42
+  If-Match: <span class="c-str">"v7-9f2c1a"</span>
+  Content-Type: application/merge-patch+json
+
+  {<span class="c-str">"grade"</span>: <span class="c-str">"vip"</span>}
+
+  → 200 OK
+    ETag: <span class="c-str">"v8-3b7e02"</span>    <span class="c-ok"># 갱신된 새 지문 — 다음 수정은 이 값으로 If-Match</span>
+  → <span class="c-bad">412 Precondition Failed</span>   <span class="c-com"># 누군가 먼저 바꿈 → 다시 읽고 재시도</span></code></pre>
+
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각</span>
+      <p>응답에 <strong>갱신된 ETag를 반드시 다시 실어야 한다</strong>. 안 그러면 클라이언트는 방금 자기가 바꾼 리소스의 새 지문을 몰라, 연속으로 수정할 때마다 GET을 한 번 더 해야 한다.</p>
+
+    <p>이 방식을 <strong>낙관적 동시성 제어</strong>라 부른다 — 미리 잠그지 않고, 충돌이 났을 때만 거부하는 전략이다. 행을 미리 잠그는 <code>SELECT ... FOR UPDATE</code>와 달리 잠금 시간이 0이라 처리량이 높다. 협업 편집 화면이나 여러 담당자가 같은 캠페인을 만지는 어드민처럼 <strong>동시 편집이 실제로 일어나는 화면</strong>이라면, PATCH 도입과 함께 검토할 가치가 있다. 단순 개인 설정 페이지에는 과하다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 08 ============ -->
+  <section id="django">
+    <h2 class="sec"><span class="num">08</span>Django·DRF 실무 — partial=True 와 '미전송 vs null'</h2>
+
+    <p>Django REST Framework에서 <code>ModelViewSet</code>은 PUT을 <code>update()</code>에, PATCH를 <code>partial_update()</code>에 연결한다. 둘의 차이는 딱 한 곳, 시리얼라이저에 넘기는 <code>partial</code> 플래그다.</p>
+
+<pre><code><span class="c-com"># DRF 내부 동작을 단순화하면 이렇다</span>
+serializer = self.<span class="c-fn">get_serializer</span>(instance, data=request.data, partial=partial)
+<span class="c-com">#                                                        ↑ PUT은 False, PATCH는 True</span></code></pre>
+
+    <div class="box note">
+      <span class="tag">📎 partial=True가 실제로 하는 일</span>
+      <p><code>partial=True</code>는 <strong>필수 필드 검증을 건너뛰게</strong> 만든다. <code>required=True</code>인 필드가 요청 본문에 없어도 검증이 통과하고, <code>validated_data</code>에는 <strong>실제로 보내온 키만</strong> 담긴다. 즉 "안 보낸 필드"는 아예 <code>validated_data</code>에 존재하지 않는다 — <code>None</code>으로 채워지는 게 아니다. 이 구분이 다음 함정의 핵심이다.</p>
+    </div>
+
+    <h3>함정 ①: <code>.get()</code>은 '안 보냄'과 'null'을 구분하지 못한다</h3>
+
+    <p class="code-label">❌ 나쁜 예 — 안 보낸 필드가 조용히 지워진다</p>
+<pre><code><span class="c-kw">def</span> <span class="c-fn">patch</span>(self, request, pk):
+    user = User.objects.<span class="c-fn">get</span>(pk=pk)
+    user.name = request.data.<span class="c-fn">get</span>(<span class="c-str">"name"</span>)     <span class="c-com"># 키가 없으면 None → 이름이 날아간다</span>
+    user.phone = request.data.<span class="c-fn">get</span>(<span class="c-str">"phone"</span>)   <span class="c-com"># 00절의 그 버그가 PATCH 이름표를 달고 재현된다</span>
+    user.<span class="c-fn">save</span>()</code></pre>
+
+    <p class="code-label">✅ 좋은 예 — 키의 '존재 여부'로 판단한다</p>
+<pre><code><span class="c-kw">def</span> <span class="c-fn">patch</span>(self, request, pk):
+    user = User.objects.<span class="c-fn">get</span>(pk=pk)
+    changed = [f <span class="c-kw">for</span> f <span class="c-kw">in</span> (<span class="c-str">"name"</span>, <span class="c-str">"phone"</span>) <span class="c-kw">if</span> f <span class="c-kw">in</span> request.data]
+    <span class="c-com"># 키의 존재로 판단 — null 을 명시적으로 보낸 경우는 반영된다</span>
+    <span class="c-kw">for</span> field <span class="c-kw">in</span> changed:
+        <span class="c-fn">setattr</span>(user, field, request.data[field])
+    user.<span class="c-fn">save</span>(update_fields=changed)   <span class="c-com"># 실제로 바뀐 컬럼만 UPDATE 문에 담긴다</span></code></pre>
+
+    <p>DRF의 <code>partial_update()</code>를 그대로 쓰면 이 처리를 시리얼라이저가 대신해 준다. 직접 <code>patch()</code>를 구현할 때만 조심하면 된다.</p>
+
+    <div class="box warn">
+      <span class="tag">⚠️ Merge Patch의 null 규칙과 Django 모델의 충돌</span>
+      <p>Merge Patch 표준에서 <code>null</code>은 "키를 삭제하라"는 뜻이지만, Django 모델의 <code>null=True</code> 컬럼에서는 "값을 NULL로 저장하라"가 자연스러운 해석이다. 대부분의 API는 후자로 구현한다 — <strong>틀린 건 아니지만 표준과는 다른 해석</strong>이므로, 외부 공개 API라면 문서에 어느 쪽인지 반드시 적어야 한다.</p>
+    </div>
+
+    <h3>함정 ②: 상대적 변경은 PATCH여도 멱등하지 않다</h3>
+
+<pre><code><span class="c-com"># 조회수 증가를 PATCH 엔드포인트로 노출한다면</span>
+Post.objects.<span class="c-fn">filter</span>(pk=pk).<span class="c-fn">update</span>(view_count=<span class="c-fn">F</span>(<span class="c-str">"view_count"</span>) + <span class="c-num">1</span>)
+<span class="c-com"># F() 는 DB 레벨에서 "현재값 + 1"을 계산해 경합을 막아준다.</span>
+<span class="c-com"># 하지만 "현재값 기준 상대 변경"이므로, 요청이 두 번 도달하면 2가 오른다.</span>
+<span class="c-com"># 재시도 가능한 클라이언트를 상대한다면 요청 식별자로 중복을 걸러야 한다.</span></code></pre>
+
+    <div class="box warn">
+      <span class="tag">⚠️ DRF에 <code>merge-patch+json</code>을 그대로 보내면 415가 난다</span>
+      <p>05절에서 "정확한 미디어 타입을 쓰라"고 했지만, 여기엔 함정이 하나 있다. DRF의 기본 파서 <code>JSONParser</code>는 <code>media_type = "application/json"</code>이라, 프론트에서 <code>Content-Type: application/merge-patch+json</code>으로 보내면 <strong>뷰에 닿기도 전에 415가 떨어진다</strong>. 둘 중 하나를 고른다.</p>
+      <p>① <strong>사내 API라면 그냥 <code>application/json</code>을 쓰고</strong>, "이 엔드포인트의 PATCH 본문은 Merge Patch 규칙을 따른다"를 API 문서에 적는다 — 대부분 이걸로 충분하다. ② <strong>외부 공개 API라 미디어 타입을 정확히 쓰고 싶다면</strong> 파서를 하나 더 붙인다.</p>
+    </div>
+
+<pre><code><span class="c-kw">class</span> <span class="c-fn">MergePatchJSONParser</span>(JSONParser):
+    media_type = <span class="c-str">"application/merge-patch+json"</span>
+
+<span class="c-kw">class</span> <span class="c-fn">UserViewSet</span>(ModelViewSet):
+    parser_classes = [JSONParser, MergePatchJSONParser]</code></pre>
+
+    <div class="box tip">
+      <span class="tag">✅ 우리 스택으로 정리하면</span>
+      <p>① 부분 수정 엔드포인트는 <strong>PATCH + <code>partial_update</code></strong>로 두고, ② 지시서는 <strong>절대값만 담는 Merge Patch 스타일</strong>로 제한하고, ③ <strong><code>@transaction.atomic</code></strong>으로 감싸 원자성을 지키고, ④ 동시 편집이 실제로 일어나는 리소스에만 <strong><code>If-Match</code></strong>를 얹는다. 이 네 가지면 실무의 90%는 덮인다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 09 ============ -->
+  <section id="new-method">
+    <h2 class="sec"><span class="num">09</span>새 메서드는 어떻게 태어나는가 — QUERY 사례</h2>
+    <p class="kicker">PATCH가 2010년에 합류했듯, 2026년에도 새 메서드가 들어왔다</p>
+
+    <p>"HTTP 메서드는 고정된 목록이 아니다"라는 말의 가장 좋은 증거는 <strong>지금 막 일어난 일</strong>이다. 검색 API를 만들어 본 사람이라면 익숙할 딜레마에서 출발한다.</p>
+
+    <ol class="ladder">
+      <li><strong>GET으로 하자니 조건이 URL에 안 들어간다</strong>필터가 20개짜리 검색이면 쿼리 스트링이 수 KB가 된다. 게다가 HTTP 명세는 <strong>GET 요청의 본문에 일반적으로 정의된 의미가 없다</strong>고 못 박아 두었다. <strong>명세가 의미를 정의하지 않았다는 건 구현체가 그 본문을 어떻게 다뤄도 규격 위반이 아니라는 뜻이다.</strong> 실제로 상당수의 프록시·CDN·HTTP 클라이언트 라이브러리는 GET의 본문을 그냥 떼어 버리거나 아예 전송하지 않는다 — 내 서버가 읽을 줄 알아도 본문이 도착하지 않는다.</li>
+      <li><strong>POST로 하자니 캐시도 재시도도 못 한다</strong>POST는 안전하지도 멱등하지도 않다고 <strong>선언</strong>돼 있다. 그래서 프록시와 <strong>CDN</strong>(전 세계에 분산된 캐시 서버망 — 같은 응답을 매번 원 서버까지 가지 않고 가까운 곳에서 돌려준다)은 응답을 캐시하지 않고, 클라이언트는 타임아웃 시 자동 재시도를 못 한다. 실제로는 그냥 읽기 작업일 뿐인데도.</li>
+      <li><strong>그래서 새 메서드를 만든다</strong>본문을 실을 수 있고, <strong>안전하며 멱등한</strong> 메서드. 이것이 <code>QUERY</code>다. 2026년 <strong>RFC 10008</strong>로 표준이 됐다(J. Reschke, J. Snell, M. Bishop).</li>
+    </ol>
+
+<pre><code><span class="c-kw">QUERY</span> /api/v1/contents
+Content-Type: application/json
+Accept: application/json
+
+{
+  <span class="c-str">"categories"</span>: [<span class="c-str">"뷰티"</span>, <span class="c-str">"홈리빙"</span>],
+  <span class="c-str">"follower_range"</span>: [<span class="c-num">10000</span>, <span class="c-num">500000</span>],
+  <span class="c-str">"period"</span>: {<span class="c-str">"start"</span>: <span class="c-str">"2026-07-01"</span>, <span class="c-str">"end"</span>: <span class="c-str">"2026-08-01"</span>}
+}
+<span class="c-com"># 본문을 쓰지만 읽기 전용이고 멱등하다 → 캐시·재시도 모두 안전</span></code></pre>
+
+    <div class="box note">
+      <span class="tag">📎 URL이 같은데 본문이 다르면 캐시가 어떻게 구분하나</span>
+      <p>바로 떠오르는 질문이고, RFC 10008이 실제로 푸는 문제가 이것이다. HTTP 캐시는 보통 URL을 키로 쓰는데, 이 명세는 <strong>QUERY 요청의 캐시 키가 요청 본문을 반드시 포함해야 한다(MUST)</strong>고 못 박는다. 그래서 같은 주소라도 조건이 다르면 다른 항목으로 저장된다. <strong>POST에는 이런 규칙이 아예 없어서</strong> 캐시가 손댈 여지 자체가 없었다는 게 차이다.</p>
+    </div>
+
+    <h3>메서드 하나가 표준이 되는 경로</h3>
+    <p>PATCH와 QUERY는 똑같은 길을 걸었다.</p>
+
+    <div class="diagram">  실무에서 반복되는 불편
+        │
+        ▼
+  IETF 워킹그룹에서 문제 제기 · 인터넷 드래프트 작성
+        │   (draft-ietf-httpbis-... 로 여러 판을 거치며 다듬는다)
+        ▼
+  RFC 발행 — 의미·안전성·멱등성·오류 처리를 문서로 확정
+        │   PATCH  → RFC 5789  (2010)
+        │   QUERY  → RFC 10008 (2026)
+        ▼
+  IANA HTTP Method Registry 에 한 줄 등록
+        │   이름 / Safe / Idempotent / 참조 RFC
+        ▼
+  서버·프레임워크·프록시가 구현 ── 여기까지 와야 실제로 쓸 수 있다
+        │   PATCH 는 이 마지막 단계에 몇 년이 더 걸렸다</div>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 표준이 됐다고 바로 쓸 수 있는 건 아니다</span>
+      <p>메서드는 <strong>양쪽 끝과 그 사이 모두가 알아야</strong> 동작한다. 클라이언트, 로드밸런서, 리버스 프록시, WAF, 웹 서버, 애플리케이션 프레임워크 — 하나라도 모르는 메서드를 거부하면 요청은 서버에 닿지 않는다. PATCH가 2010년 표준화 이후에도 한동안 <code>POST + _method=PATCH</code>로 쓰인 1차 원인은 <strong>브라우저 폼의 GET/POST 제약</strong>(02절)이고, 중간 장비의 화이트리스트는 그 위에 얹힌 두 번째 관문이다.</p>
+    </div>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 로드밸런서</span>
+      <p>02절에서 본 리버스 프록시·WAF에 더해 <strong>로드밸런서</strong>(같은 역할을 하는 서버 여러 대에 요청을 나눠 보내는 장비)도 같은 길목에 선다. 관문이 많을수록 새 메서드가 끝까지 도달하기 어려워진다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 10 치트시트 ============ -->
+  <section id="cheatsheet">
+    <h2 class="sec"><span class="num">10</span>한 장 요약 치트시트</h2>
+
+    <div class="tldr">
+      <span class="tag">왜 다섯 개밖에 없나요?</span>
+      <p><strong>다섯 개밖에 없는 게 아니라, 다섯 개만 모두가 이해한다.</strong> HTTP는 메서드를 닫힌 목록이 아니라 IANA 레지스트리로 관리하고, 거기엔 지금 40개가 등록돼 있다. 우리 눈에 다섯 개만 보이는 건 브라우저 폼(GET·POST만 지원), CRUD 중심 교육, 중간 장비의 화이트리스트가 만든 <strong>생태계의 교집합</strong>이다.</p>
+    </div>
+
+    <div class="tldr">
+      <span class="tag">PATCH가 최근이라는 게 무슨 뜻인가요?</span>
+      <p><strong>PATCH는 핵심 명세의 규범 본문에 한 번도 들어간 적 없는 확장 메서드이고, 심지어 한 번 잘려나갔다 돌아왔다.</strong> 1997년 RFC 2068 부록에 처음 실렸다가 1999년 "널리 구현되지 않았다"는 이유로 삭제됐고, 2010년 독립 RFC 5789로 다시 제안돼 이번엔 살아남았다. 2022년 최신 핵심 명세(RFC 9110)의 8개에도 여전히 없다. 그래도 모두가 쓰는 건, 새 메서드를 계속 받아들이도록 설계된 레지스트리 방식이 의도대로 작동했다는 증거다. 2026년 <code>QUERY</code>가 같은 길을 따라 들어왔다.</p>
+    </div>
+
+    <table>
+      <thead><tr><th>기억할 것</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>한 줄 원리</td><td>PUT의 본문은 <strong>새 상태</strong>, PATCH의 본문은 <strong>변경 지시서</strong></td></tr>
+        <tr><td>PUT에 일부만 보내면</td><td>빠진 필드는 "값 없음"이 된다 — 데이터가 지워질 수 있다</td></tr>
+        <tr><td>PATCH 멱등성</td><td>기본적으로 <strong>멱등 아님</strong>. 절대값만 담으면 실질적으로 멱등해진다</td></tr>
+        <tr><td>지시서 문법 2종</td><td><code>merge-patch+json</code>(쉽고 흔함) / <code>json-patch+json</code>(배열·조건부에 강함)</td></tr>
+        <tr><td>Merge Patch의 <code>null</code></td><td>표준상 "키 삭제". 값을 진짜 null로 두는 건 표현 불가 — 구현 시 문서화 필수</td></tr>
+        <tr><td>서버의 의무</td><td><strong>원자성</strong> — 전부 적용하거나 전부 적용하지 않는다</td></tr>
+        <tr><td>성공 응답</td><td>200(갱신된 표현) 또는 204. 어느 쪽이든 <strong>갱신된 <code>ETag</code>를 같이</strong> 실는다</td></tr>
+        <tr><td>실패 코드</td><td>400 문법 / 409 상태 충돌 / 412 조건 불일치 / 415 모르는 포맷 / 422 규칙 위반</td></tr>
+        <tr><td>동시 수정</td><td><code>ETag</code> + <code>If-Match</code> → 충돌 시 412. 갱신 손실을 막는다</td></tr>
+        <tr><td>DRF</td><td>PATCH → <code>partial_update()</code> → <code>partial=True</code>. 안 보낸 키는 <code>validated_data</code>에 없다</td></tr>
+        <tr><td>DRF 함정</td><td><code>merge-patch+json</code>을 그대로 보내면 <strong>415</strong>. 그리고 DRF의 PUT은 스펙과 달리 빠진 optional 필드를 지우지 않는다</td></tr>
+        <tr><td>직접 구현 시</td><td><code>request.data.get()</code> 금지 — <code>"key" in request.data</code>로 존재 여부를 본다</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="wrap">
+  <h3>더 읽어보기 (출처)</h3>
+  <ul>
+    <li>IANA — <a href="https://www.iana.org/assignments/http-methods/http-methods.xhtml">Hypertext Transfer Protocol (HTTP) Method Registry</a> (등록된 40개 메서드 목록과 각각의 Safe·Idempotent 값)</li>
+    <li>RFC 5789 — <a href="https://www.rfc-editor.org/rfc/rfc5789.html">PATCH Method for HTTP</a> (2010, Dusseault·Snell / PUT과의 차이, 원자성 의무, 상태 코드, Accept-Patch)</li>
+    <li>RFC 9110 — <a href="https://www.rfc-editor.org/rfc/rfc9110.html">HTTP Semantics</a> (2022 / 핵심 8개 메서드 정의, 안전·멱등 정의, GET 본문의 의미)</li>
+    <li>RFC 7396 — <a href="https://www.rfc-editor.org/rfc/rfc7396.html">JSON Merge Patch</a> (2014 / null의 삭제 의미와 배열 통째 교체)</li>
+    <li>RFC 6902 — <a href="https://www.rfc-editor.org/rfc/rfc6902.html">JavaScript Object Notation (JSON) Patch</a> (2013 / 6가지 연산과 test)</li>
+    <li>RFC 10008 — <a href="https://www.rfc-editor.org/rfc/rfc10008.txt">The HTTP QUERY Method</a> (2026, Reschke · Snell · Bishop / 안전하고 멱등하며 본문을 갖는 메서드, §2.7 캐시 키가 본문을 포함해야 한다는 규정)</li>
+    <li>RFC 2068 — <a href="https://www.rfc-editor.org/rfc/rfc2068.txt">HTTP/1.1 (1997)</a> (§19.6.1.1 = PATCH의 첫 등장, 부록 §19.6의 지위 규정. CONNECT는 이 판에 없음)</li>
+    <li>RFC 2616 — <a href="https://www.rfc-editor.org/rfc/rfc2616.txt">HTTP/1.1 (1999)</a> (§19.6.1 "The PATCH, LINK, UNLINK methods were defined but not commonly implemented in previous versions" — 삭제 기록)</li>
+    <li>RFC 1945 — <a href="https://www.rfc-editor.org/rfc/rfc1945.html">HTTP/1.0 (1996)</a> (본문 GET · HEAD · POST, 부록 D.1의 추가 메서드)</li>
+    <li>Django REST framework — <a href="https://www.django-rest-framework.org/api-guide/serializers/#partial-updates">Serializers: Partial updates</a> (<code>partial=True</code>의 동작. 3.18 소스 확인 — <code>fields.py</code>의 <code>SkipField</code> 처리, <code>serializers.py</code>의 <code>update()</code>가 <code>validated_data</code> 키만 <code>setattr</code>, <code>parsers.py</code>의 <code>JSONParser.media_type</code>)</li>
+  </ul>
+  <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+</footer>
+
+<!-- TOC 현재 위치 하이라이트 -->
+<script>
+  const links = [...document.querySelectorAll('nav.toc a')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      const a = map.get(e.target.id);
+      if (a && e.isIntersecting) {
+        links.forEach(l => { l.style.color = ''; l.style.fontWeight = ''; });
+        a.style.color = 'var(--accent)';
+        a.style.fontWeight = '700';
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>

@@ -8,6 +8,7 @@
 
 | # | 키워드 | 날짜 |
 |---|---|---|
+| 08 | [PATCH — HTTP 메서드는 왜 다섯 개뿐일까](patch-http-method-guide.html) | 2026-08-24 |
 | 07 | [멱등성 — 같은 요청이 두 번 와도, 세상은 한 번만 바뀐다](idempotency-guide.html) | 2026-08-11 |
 | 06 | [패킷 — HTTP 요청은 문자열 전송이 아니다](packet-guide.html) | 2026-08-03 |
 | 05 | [WAL — Write-Ahead Logging](wal-guide.html) | 2026-07-28 |
@@ -55,4 +56,6 @@ python3 -m http.server 8899 --bind 127.0.0.1
 - **표 안의 긴 식별자는 반드시 `<code>`로 감쌀 것.** `innodb_flush_log_at_trx_commit` 같은 20자+ 토큰이 맨 텍스트로 있으면 표가 뷰포트를 밀어내 페이지 전체에 가로 스크롤이 생긴다. 줄바꿈 허용(`overflow-wrap: anywhere`)은 `code`에만 걸려 있다.
 - **줄바꿈 허용을 셀(`td`) 전체로 넓히지 말 것.** 표는 안 넘치지만 `PostgreSQL`이 `Post/greS/QL`로 글자 단위로 쪼개진다.
 - **표는 3열까지.** 375px에서 4열은 각 열이 80px 미만이 된다.
+- **가운뎃점(`·`)으로 이어 붙인 긴 나열은 줄바꿈 지점이 없다.** `GET·HEAD·POST·PUT·DELETE·CONNECT·OPTIONS·TRACE` 처럼 쓰면 한 단어로 취급돼 뷰포트를 밀어낸다. 앞뒤에 공백을 넣어 `GET · HEAD · POST` 로 쓴다.
+- **`.timeline`의 `<span class="desc">` 안에서 `<strong>`을 쓰지 말 것.** 공용 CSS의 `.timeline li strong { display: block }`이 제목용인데 본문에도 걸려서, 강조한 부분이 통째로 줄바꿈되며 문장이 토막 나고 마침표가 고아가 된다. 굵게 하려면 `<b>`를 쓴다.
 - `pre`와 `.diagram`은 `overflow-x: auto`로 자체 스크롤한다. 본문을 밀지 않으므로 정상이다.

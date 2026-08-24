@@ -201,7 +201,7 @@
     <h1>주니어 개발자를 위한<br>안내서 모음</h1>
     <p class="lede">매주 하나의 키워드를 골라, 왜 그것이 존재하게 됐는지부터 우리 스택 어디에 숨어 있는지까지 한 편으로 끝내는 문서들. 각 편은 독립적이라 아무 순서로 읽어도 됩니다.</p>
     <div class="meta-row">
-      <span class="pill">📚 7편</span>
+      <span class="pill">📚 8편</span>
       <span class="pill">☕ 편당 15~40분</span>
       <span class="pill">🐍 Python·Django 스택으로 연결</span>
     </div>
@@ -213,6 +213,21 @@
   <p class="kicker">최신순</p>
 
   <div class="cards">
+
+    <a class="card" href="patch-http-method-guide.html">
+      <div class="top">
+        <span class="no">08</span>
+        <h3>PATCH — HTTP 메서드는 왜 다섯 개뿐일까</h3>
+        <span class="date">2026-08-24</span>
+      </div>
+      <p class="desc">GET · POST · PUT · PATCH · DELETE는 세트가 아니다. IANA에 등록된 메서드는 40개고, PATCH는 1997년 부록에 실렸다가 "널리 구현되지 않았다"는 이유로 1999년에 삭제된 뒤 2010년 독립 RFC로 돌아왔다. PUT의 본문이 '새 상태'이고 PATCH의 본문이 '변경 지시서'라는 한 줄에서 멱등성 · Content-Type · 원자성 · 상태 코드가 전부 따라 나온다.</p>
+      <p class="quote">💬 왜 GET, POST, PUT, PATCH, DELETE밖에 없나요? HTTP Method는 고정된 목록이 아님. PATCH가 추가된 것도 비교적 최근임.</p>
+      <div class="tags">
+        <span class="tag">🕰️ 1997 등장 → 1999 삭제 → 2010 복귀</span>
+        <span class="tag">🐍 DRF partial=True 함정</span>
+        <span class="tag">⚠️ 멱등 아님 · null 삭제</span>
+      </div>
+    </a>
 
     <a class="card" href="idempotency-guide.html">
       <div class="top">
