@@ -412,7 +412,7 @@
     <p>즉 WAS의 본질은 <strong>"비싼 준비(로딩·커넥션·초기화)를 한 번만 하고, 요청은 준비된 환경에서 처리한다"</strong>입니다. 여기에 앱 생명주기 관리(시작·재시작·죽은 worker 교체)까지 얹은 것이 현대의 WAS입니다.</p>
     <div class="box tip">
       <span class="tag">✅ 우리 스택으로 번역하면</span>
-      <p><code>gunicorn</code>이 Django 앱을 worker 프로세스 여러 개로 <strong>미리 띄워두고</strong>(상주), 요청이 오면 노는 worker에게 배분합니다. Django의 DB 커넥션 재사용(<code>CONN_MAX_AGE</code>)도 프로세스가 살아 있기에 가능한 것. <strong>gunicorn = 파이썬의 WAS</strong>라고 이해하면 정확합니다. 그리고 WAS와 앱이 대화하는 규약이 <strong>WSGI</strong> — CGI의 직계 후손입니다(환경변수 딕셔너리 <code>environ</code>을 넘겨주는 것까지 닮았죠).</p>
+      <p><code>gunicorn</code>이 Django 앱을 worker 프로세스 여러 개로 <strong>미리 띄워두고</strong>(상주), 요청이 오면 <strong>노는 worker가 직접 받아 갑니다</strong> — 마스터가 나눠 주는 것이 아니라, 모든 worker가 마스터에게서 물려받은 <strong>같은 리슨 소켓</strong>(포트를 열어 두고 접속을 받는 창구 하나)에 각자 <code>accept()</code>(대기 중인 접속을 하나 꺼내 오는 호출)를 걸어 두고, 커널이 대기 줄에서 하나씩 꺼내 주는 방식입니다. Django의 DB 커넥션 재사용(<code>CONN_MAX_AGE</code>)도 프로세스가 살아 있기에 가능한 것. <strong>gunicorn = 파이썬의 WAS</strong>라고 이해하면 정확합니다. 그리고 WAS와 앱이 대화하는 규약이 <strong>WSGI</strong> — CGI의 직계 후손입니다(환경변수 딕셔너리 <code>environ</code>을 넘겨주는 것까지 닮았죠).</p>
     </div>
   </section>
 
