@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<title>파일 디스크립터 — 커널이 세상을 작은 정수 하나로 줄이는 법</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-soft: #161b22;
+    --bg-card: #1a2029;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --text-faint: #6b7683;
+    --accent: #58a6ff;
+    --accent-2: #7ee787;
+    --cmd: #ff9e64;
+    --qry: #79c0ff;
+    --warn: #f0b429;
+    --danger: #f47067;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+    --maxw: 860px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f6f8fa;
+      --bg-card: #ffffff;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --text-dim: #57606a;
+      --text-faint: #8c959f;
+      --accent: #0969da;
+      --accent-2: #1a7f37;
+      --cmd: #bc4c00;
+      --qry: #0550ae;
+      --warn: #9a6700;
+      --danger: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(1200px 400px at 50% -50%, rgba(88,166,255,0.10), transparent);
+  }
+  .eyebrow {
+    font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 18px;
+    font-weight: 800; letter-spacing: -0.02em;
+  }
+  .lede { font-size: 19px; color: var(--text-dim); max-width: 680px; margin: 0; }
+  .quote-hero {
+    margin: 22px 0 0; padding: 12px 18px; border-left: 3px solid var(--accent);
+    background: var(--bg-soft); border-radius: 0 8px 8px 0; font-size: 16px; color: var(--text-dim);
+  }
+  .quote-hero strong { color: var(--text); }
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .pill {
+    font-size: 13px; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  nav.toc {
+    margin: 34px 0; padding: 22px 24px; background: var(--bg-soft);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  nav.toc h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-faint); margin: 0 0 14px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 34px; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  nav.toc li { margin: 5px 0; break-inside: avoid; }
+  nav.toc a { color: var(--text); text-decoration: none; font-size: 15px; }
+  nav.toc a:hover { color: var(--accent); }
+
+  main { padding: 10px 0 80px; }
+  section { padding: 34px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2.sec {
+    font-size: clamp(24px, 4vw, 32px); font-weight: 800; letter-spacing: -0.02em;
+    margin: 0 0 6px; scroll-margin-top: 20px;
+  }
+  h2.sec .num {
+    display: inline-block; font-family: var(--mono); font-size: 15px; color: var(--accent);
+    background: rgba(88,166,255,0.12); border-radius: 8px; padding: 2px 10px; margin-right: 12px;
+    vertical-align: middle; font-weight: 600;
+  }
+  h3 { font-size: 20px; font-weight: 700; margin: 30px 0 10px; letter-spacing: -0.01em; }
+  h4 { font-size: 16px; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+  p { margin: 12px 0; }
+  strong { color: var(--text); font-weight: 700; }
+  a { color: var(--accent); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 7px 0; }
+
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    padding: 1.5px 6px; border-radius: 6px; color: var(--accent-2);
+  }
+  pre {
+    background: #0b0e13; border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; margin: 16px 0; position: relative;
+    font-size: 14px; line-height: 1.6;
+  }
+  @media (prefers-color-scheme: light) { pre { background: #f6f8fa; } }
+  pre code { background: none; border: none; padding: 0; color: var(--text); font-size: 14px; }
+  .c-kw { color: #ff7b72; } .c-fn { color: #d2a8ff; } .c-str { color: #a5d6ff; }
+  .c-com { color: var(--text-faint); font-style: italic; } .c-num { color: #79c0ff; }
+  .c-ok { color: var(--accent-2); } .c-bad { color: var(--danger); }
+  @media (prefers-color-scheme: light) {
+    .c-kw { color: #cf222e; } .c-fn { color: #8250df; } .c-str { color: #0a3069; } .c-num { color: #0550ae; }
+  }
+  .code-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-faint); margin: 18px 0 -8px;
+  }
+
+  .box {
+    margin: 20px 0; padding: 16px 20px; border-radius: 12px;
+    border: 1px solid var(--border); border-left-width: 4px; background: var(--bg-card);
+  }
+  .box .tag { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+  .box p:first-of-type { margin-top: 4px; }
+  .box p:last-child { margin-bottom: 0; }
+  .box.tip { border-left-color: var(--accent-2); }
+  .box.tip .tag { color: var(--accent-2); }
+  .box.warn { border-left-color: var(--warn); }
+  .box.warn .tag { color: var(--warn); }
+  .box.danger { border-left-color: var(--danger); }
+  .box.danger .tag { color: var(--danger); }
+  .box.note { border-left-color: var(--accent); }
+  .box.note .tag { color: var(--accent); }
+  .box.analogy { border-left-color: #d2a8ff; }
+  .box.analogy .tag { color: #d2a8ff; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0; }
+  @media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+  .split .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--bg-card); }
+  .split .card.cmd { border-top: 3px solid var(--cmd); }
+  .split .card.qry { border-top: 3px solid var(--qry); }
+  .split .card h4 { margin-top: 0; font-size: 18px; }
+  .split .card.cmd h4 { color: var(--cmd); }
+  .split .card.qry h4 { color: var(--qry); }
+  .split .card ul { padding-left: 18px; margin: 8px 0 0; font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: none; }
+
+  .diagram {
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre;
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; overflow-x: auto; color: var(--text-dim); margin: 18px 0;
+  }
+  .kicker { color: var(--text-dim); font-size: 15px; margin: 2px 0 18px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 22px 0; }
+  @media (max-width: 640px) { .stat-row { grid-template-columns: 1fr; } }
+  .stat {
+    border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: var(--bg-card);
+  }
+  .stat .big { font-size: 26px; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+  .ladder { counter-reset: step; margin: 20px 0; padding: 0; list-style: none; }
+  .ladder li {
+    position: relative; padding: 14px 18px 14px 60px; margin: 12px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .ladder li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 16px; top: 14px; width: 30px; height: 30px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 15px;
+  }
+  .ladder li strong { display: block; margin-bottom: 3px; }
+
+  .timeline { margin: 20px 0; padding: 0; list-style: none; }
+  .timeline li {
+    position: relative; padding: 12px 18px 12px 110px; margin: 10px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .timeline li .yr {
+    position: absolute; left: 16px; top: 14px;
+    font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--accent);
+  }
+  .timeline li strong { display: block; margin-bottom: 2px; }
+  .timeline li span.desc { font-size: 15px; color: var(--text-dim); }
+  @media (max-width: 640px) {
+    .timeline li { padding-left: 18px; padding-top: 38px; }
+  }
+
+  footer { padding: 40px 0 60px; color: var(--text-faint); font-size: 14px; }
+  footer h3 { color: var(--text-dim); font-size: 15px; }
+  footer a { color: var(--text-dim); }
+  footer ul { padding-left: 20px; }
+
+  .tldr {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(126,231,135,0.06));
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin: 24px 0;
+  }
+  .tldr .tag { color: var(--accent); font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+  .tldr p { margin: 8px 0 0; font-size: 16px; }
+
+  /* ===== 모바일 대응 (mobile) ===== */
+  html { -webkit-text-size-adjust: 100%; }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px; }
+    header.hero { padding: 48px 0 34px; }
+    h1 { font-size: clamp(25px, 7.2vw, 34px); }
+    .lede { font-size: 17px; }
+    .quote-hero { font-size: 15px; padding: 11px 15px; }
+    .pill { font-size: 12px; padding: 5px 11px; }
+    main { padding: 6px 0 56px; }
+    section { padding: 26px 0; }
+    h2.sec { font-size: clamp(21px, 5.6vw, 26px); }
+    h2.sec .num { font-size: 13px; padding: 2px 8px; margin-right: 9px; }
+    h3 { font-size: 18px; }
+
+    /* 긴 식별자(innodb_flush_log_at_trx_commit 등)가 표·문단을 밀어내지 않도록 */
+    /* 긴 토큰은 code 안에만 있으므로 줄바꿈 허용은 code로 한정한다.
+       셀 전체에 걸면 'PostgreSQL'이 글자 단위로 쪼개진다. */
+    code { overflow-wrap: anywhere; }
+    th, td { padding: 9px 10px; font-size: 14px; }
+    th { font-size: 12px; }
+    td code, th code { font-size: 0.82em; }
+
+    pre { padding: 14px 15px; }
+    pre, pre code { font-size: 13px; }
+    .diagram { font-size: 11px; padding: 15px; line-height: 1.45; }
+    .box { padding: 14px 16px; }
+    .tldr { padding: 17px 18px; }
+    .tldr p { font-size: 15px; }
+    .stat .big { font-size: 23px; }
+    .ladder li { padding: 13px 15px 13px 52px; }
+    .ladder li::before { left: 13px; top: 13px; width: 27px; height: 27px; font-size: 14px; }
+    nav.toc { padding: 18px 18px; margin: 26px 0; }
+    footer { padding: 30px 0 48px; }
+
+    /* index.html 카드 */
+    a.card { padding: 17px 18px; }
+    a.card h3 { font-size: 19px; }
+    a.card .date { margin-left: 0; width: 100%; order: 3; }
+    a.card .desc, a.card .quote { font-size: 14px; }
+  }
+
+  /* ===== 목록 back-link ===== */
+  .backlink {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    color: var(--text-dim); margin-bottom: 20px;
+    padding: 5px 12px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft);
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .backlink:hover { color: var(--accent); border-color: var(--accent); }
+  footer .backlink { margin: 26px 0 0; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+    <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
+    <h1>파일 디스크립터<br>커널이 세상을 작은 정수 하나로 줄이는 법</h1>
+    <p class="lede">로그 파일에 쓰는 일, HTTP 요청을 보내는 일, DB 커넥션을 여는 일. 전혀 다른 세 가지 같지만 커널 안에서는 똑같은 것 하나로 표현된다 — <strong>작은 정수 한 개</strong>. 왜 하필 정수였고, 그 정수가 왜 어느 날 새벽 <code>Too many open files</code>로 서비스를 멈추는가.</p>
+    <p class="quote-hero">💬 <strong>"운영체제가 리소스를 추상화 하는 방식"</strong></p>
+    <div class="meta-row">
+      <span class="pill">☕ 읽는 데 ~45분</span>
+      <span class="pill">🕰️ 1974 fd → 2019 pidfd</span>
+      <span class="pill">🐍 Django·gunicorn·nginx로 연결</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#intro">새벽 3시, Too many open files</a></li>
+      <li><a href="#what">파일 디스크립터란 무엇인가</a></li>
+      <li><a href="#why">왜 하필 "정수"였나</a></li>
+      <li><a href="#three">세 겹 테이블 — 번호표는 파일이 아니다</a></li>
+      <li><a href="#swap">번호 배정과 바꿔치기</a></li>
+      <li><a href="#inherit">fork · exec 과 상속</a></li>
+      <li><a href="#limits">한계 — EMFILE 과 ENFILE</a></li>
+      <li><a href="#leak">누수를 찾아내는 법</a></li>
+      <li><a href="#beyond">추상화의 확장 — epoll · pidfd</a></li>
+      <li><a href="#cheatsheet">한 장 요약 치트시트</a></li>
+    </ol>
+    <p style="margin:14px 0 0;font-size:14px;color:var(--text-faint)">시간이 없으면 <strong>03절</strong>(구조)과 <strong>06절</strong>(한도)만 읽어도 된다. 나머지는 그 둘의 응용이다.</p>
+  </nav>
+</div>
+
+<main class="wrap">
+
+  <section id="intro">
+    <h2 class="sec"><span class="num">00</span>새벽 3시, Too many open files</h2>
+    <p class="kicker">고장은 늘 이 문장으로 시작한다</p>
+
+    <p>어느 날 새벽, 잘 돌던 서비스가 갑자기 응답하지 않는다. 로그를 열면 이런 게 쏟아진다.</p>
+
+<pre><code><span class="c-bad">OSError: [Errno 24] Too many open files</span>
+<span class="c-com"># nginx 쪽에서는 이렇게 보인다</span>
+<span class="c-bad">accept4() failed (24: Too many open files)</span></code></pre>
+
+    <p>이상한 점이 있다. 우리 코드는 <strong>파일을 열지 않는다.</strong> 로그는 표준 출력으로만 나가고, 저장은 전부 S3다. 그런데 왜 "열린 파일이 너무 많다"고 할까?</p>
+
+    <p>답은 이 문장 안에 있다. 리눅스가 말하는 "파일"은 우리가 생각하는 파일이 아니다. 지금 이 순간 그 프로세스가 붙들고 있던 것은 <strong>HTTP 커넥션 소켓 수천 개</strong>였고, 커널 입장에서 그것은 <code>/var/log/app.log</code>와 완전히 같은 종류의 물건이었다. S3에 올리는 그 순간에도 마찬가지다 — HTTPS 커넥션 하나가 소켓 하나이고, 소켓 하나가 곧 "열린 파일" 하나다. <strong>"파일을 안 연다"와 "이 자원을 안 쓴다"는 전혀 다른 말이었다.</strong></p>
+
+    <div class="box note">
+      <span class="tag">이 문서가 답하는 것</span>
+      <p>① 왜 소켓도 · 파이프도 · 심지어 프로세스도 "파일"인가 ② 그 정체인 <strong>작은 정수</strong>가 커널 안에서 무엇을 가리키는가 ③ 그래서 <code>2&gt;&amp;1</code>은 왜 그렇게 생겼고, <code>ulimit -n</code>은 왜 하필 1024인가 ④ 그리고 이 전부가 왜 "운영체제가 리소스를 추상화 하는 방식"의 교과서적 사례인가. 다 읽으면 <code>Errno 24</code>를 봤을 때 어디를 볼지 손이 먼저 움직인다.</p>
+    </div>
+  </section>
+
+  <section id="what">
+    <h2 class="sec"><span class="num">01</span>파일 디스크립터란 무엇인가</h2>
+    <p class="kicker">놀랍도록 시시한 정답부터</p>
+
+    <p>파일 디스크립터(file descriptor, 줄여서 <strong>fd</strong>)는 <strong>0, 1, 2, 3… 으로 세는 작은 음이 아닌 정수</strong>다. 그게 전부다. 마법도, 구조체도, 포인터도 아니다.</p>
+
+    <p>Python으로 확인해 보면 시시할 정도로 그냥 숫자다.</p>
+
+<pre><code><span class="c-kw">import</span> socket
+
+f = <span class="c-fn">open</span>(<span class="c-str">"/tmp/a.txt"</span>, <span class="c-str">"w"</span>)
+<span class="c-fn">print</span>(f.fileno())        <span class="c-com"># 3</span>
+
+s = socket.<span class="c-fn">socket</span>()
+<span class="c-fn">print</span>(s.fileno())        <span class="c-com"># 4  ← 소켓도 같은 번호 체계를 쓴다</span></code></pre>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 소켓(socket)</span>
+      <p><strong>소켓</strong> = 네트워크로 데이터를 주고받기 위한 통로. HTTP 요청 하나를 보낸다는 건 상대 서버와 소켓 하나를 여는 일이고, 그 소켓은 <strong>fd 하나</strong>를 차지한다. 파일처럼 <code>read</code> · <code>write</code> · <code>close</code>가 그대로 통한다 — 이 문서 전체가 왜 그런지에 대한 이야기다.</p>
+    </div>
+
+    <p>이 정수는 <strong>프로세스마다 따로</strong> 매겨진다. 커널은 프로세스마다 배열 하나를 들고 있고, fd는 그 배열의 <strong>인덱스</strong>다. 내 프로세스의 <code>3</code>번과 옆 프로세스의 <code>3</code>번은 아무 관계가 없다. 반대로 <strong>같은 프로세스 안의 스레드끼리는 이 배열을 공유한다</strong> — 스레드 A가 연 fd를 스레드 B가 그대로 쓸 수 있고, 뒤에 볼 사고도 여기서 난다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 시스템 콜(system call)</span>
+      <p><strong>시스템 콜</strong> = 사용자 프로그램이 커널에게 일을 시키는 유일한 창구. 파일 읽기·네트워크 전송처럼 하드웨어가 필요한 일은 프로그램이 직접 못 하고 반드시 커널에 부탁해야 한다. <code>open()</code> · <code>read()</code> · <code>write()</code> · <code>close()</code>가 대표적이다.</p>
+    </div>
+
+    <h3>0번, 1번, 2번은 예약석이다</h3>
+
+    <table>
+      <thead><tr><th>번호</th><th>이름</th><th>Python에서</th></tr></thead>
+      <tbody>
+        <tr><td><code>0</code></td><td>표준 입력 (stdin)</td><td><code>sys.stdin</code></td></tr>
+        <tr><td><code>1</code></td><td>표준 출력 (stdout)</td><td><code>sys.stdout</code></td></tr>
+        <tr><td><code>2</code></td><td>표준 에러 (stderr)</td><td><code>sys.stderr</code></td></tr>
+      </tbody>
+    </table>
+
+    <p>이 셋은 <strong>부모 프로세스에게서 물려받는다.</strong> 터미널에서 프로그램을 띄우면 셋 다 터미널을 가리키고, 그래서 <code>print()</code>가 화면에 뜬다. 물려받는 것이므로 <strong>부모(쉘)가 미리 바꿔치기할 수 있다</strong> — 그게 04절에서 볼 리다이렉션이다.</p>
+
+    <div class="box warn">
+      <span class="tag">⚠️ POSIX가 못 박은 것은 "번호"지 "열려 있음"이 아니다</span>
+      <p>표준이 정한 것은 stdin·stdout·stderr가 각각 <strong>0 · 1 · 2번을 쓴다</strong>는 <strong>번호 배정</strong>이다. "모든 프로세스가 이 셋을 열린 채로 시작한다"는 보장이 아니다. 부모가 닫아 버리고 프로그램을 띄우면 정말로 닫힌 채 시작하고, 그러면 첫 <code>open()</code>이 <strong>0번</strong>을 받는다.</p>
+<pre><code>$ python3 -c <span class="c-str">'f=open("/tmp/a.txt","w"); print(f.fileno())'</span> 0&lt;&amp;-
+<span class="c-num">0</span>   <span class="c-com"># 0&lt;&amp;- 는 "stdin 을 닫고 실행하라"는 뜻</span></code></pre>
+      <p>실무에서 마주칠 일은 드물지만, 왜 <code>3</code>이 나오는지를 "규칙"으로 이해했는지 "외운 값"으로 이해했는지가 여기서 갈린다.</p>
+    </div>
+
+    <div class="box note">
+      <span class="tag">📎 용어: POSIX</span>
+      <p><strong>POSIX</strong> = 유닉스 계열 운영체제가 지켜야 할 인터페이스 표준(IEEE 1003). 리눅스 · macOS · BSD가 이걸 따르기 때문에, 여기서 설명하는 내용은 대부분 세 곳 모두에서 똑같이 동작한다. (윈도우는 다른 길을 갔다 — HANDLE 이라는 별도 체계를 쓴다.)</p>
+    </div>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 위 예제의 <code>3</code>은 값이 아니라 규칙이다</span>
+      <p>스크립트로 돌리면 <code>3</code>이지만, <strong>pytest 안에서는 <code>5</code>가 나온다</strong> — pytest가 출력을 가로채려고 임시 파일을 미리 열어 3·4를 차지하고 있기 때문이다. 외울 것은 <code>3</code>이 아니라 <strong>"현재 비어 있는 가장 작은 번호"</strong>라는 규칙이다.</p>
+    </div>
+  </section>
+
+  <section id="why">
+    <h2 class="sec"><span class="num">02</span>왜 하필 "정수"였나</h2>
+    <p class="kicker">1974년의 설계 결정이 지금 우리 코드를 결정한다</p>
+
+    <p>1974년 <em>Communications of the ACM</em>에 실린 Dennis Ritchie와 Ken Thompson의 UNIX 논문에는 이런 취지의 정의가 나온다 — <strong>open이 돌려주는 값을 "파일 디스크립터"라 부르며, 이후 read · write 호출에서 그 파일을 가리키는 데 쓰는 작은 정수다.</strong> (직접 인용이 아니라 요지 정리다.)</p>
+
+    <p>진짜 발명은 그다음이었다. 유닉스는 <strong>특수 파일(special file)</strong>이라는 개념을 도입해서, 터미널 · 디스크 · 프린터 같은 장치도 파일시스템 안에 이름을 갖게 했다. 그 결과가 이것이다.</p>
+
+    <div class="diagram">   장치마다 다른 API                 파일 디스크립터라는 단일 창구
+   ─────────────────                 ──────────────────────────
+   read_from_tape()                       ┌──────────────┐
+   read_from_disk()        ──▶            │  read(fd, …) │
+   read_from_terminal()                   │  write(fd,…) │
+   read_from_printer()                    │  close(fd)   │
+   …장치가 늘 때마다 API 추가              └──────────────┘
+                                          fd 가 무엇을 가리키든 동일</div>
+
+    <p>이게 왜 대단한가. <code>wc -l</code>이라는 프로그램은 "줄 수를 센다"는 일만 안다. 그 입력이 디스크의 파일인지, 다른 프로그램의 출력인지, 키보드인지 <strong>알 필요가 없다.</strong> 그냥 fd에서 <code>read()</code>할 뿐이다. 파이프(<code>|</code>)로 아무 프로그램이나 이어 붙일 수 있는 유닉스 철학은, 이 추상화가 없으면 성립하지 않는다.</p>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해: "유닉스는 모든 것이 파일이다"</span>
+      <p>자주 인용되지만 정확하지 않다. TCP 소켓은 파일시스템에 이름이 없고, 소켓과 파이프는 <code>lseek()</code>(읽는 위치를 옮기는 시스템 콜)도 안 된다 — 흘러가 버린 데이터로 되돌아갈 방법이 없기 때문이다. 더 정확한 표현은 <strong>"모든 것이 파일 디스크립터를 가질 수 있다"</strong>이다. 통일된 것은 저장 방식이 아니라 <strong>손잡이</strong>다.</p>
+      <p>(예외도 있다. 유닉스 도메인 소켓 — 같은 머신 안 프로세스끼리 쓰는 소켓 — 은 파일시스템에 이름이 있다. <code>/var/run/docker.sock</code>이 그것이다.)</p>
+    </div>
+
+    <h3>fd 가 걸어온 길</h3>
+    <p>지금 모르는 단어가 있어도 괜찮다. 05절과 08절에서 하나씩 푼다.</p>
+
+    <ol class="timeline" style="list-style:none;padding:0">
+      <li><span class="yr">1974</span><strong>fd 의 탄생</strong><span class="desc">Ritchie · Thompson 의 UNIX 논문. open 이 돌려주는 작은 정수. 특수 파일로 장치까지 같은 read · write 로 다룬다.</span></li>
+      <li><span class="yr">1983</span><strong>BSD 소켓</strong><span class="desc">4.2BSD 가 네트워크를 fd 위에 올린다. 파일시스템에 이름이 없는 것도 fd 가 될 수 있게 된 순간 — "파일"이 아니라 "디스크립터"가 본질임이 드러난다.</span></li>
+      <li><span class="yr">1999 · 2002</span><strong>fd 를 수만 개 다루는 시대</strong><span class="desc">C10K 문제 제기와 그 답인 kqueue · epoll. 08절에서 본다.</span></li>
+      <li><span class="yr">2014</span><strong>Python 3.4 / PEP 446</strong><span class="desc">파이썬이 만드는 fd 가 기본적으로 자식 프로세스에 상속되지 않도록 바뀐다. fd 누수가 보안 문제라는 인식의 결과.</span></li>
+      <li><span class="yr">2019</span><strong>pidfd</strong><span class="desc">Linux 5.3. 이제 <b>프로세스</b>조차 fd 로 가리킨다.</span></li>
+    </ol>
+  </section>
+
+  <section id="three">
+    <h2 class="sec"><span class="num">03</span>세 겹 테이블 — 번호표는 파일이 아니다</h2>
+    <p class="kicker">이 문서에서 하나만 가져간다면 이 절이다</p>
+
+    <p>fd가 "배열의 인덱스"라면, 그 배열의 칸에는 무엇이 들어 있을까. 여기서부터가 진짜 구조다. 커널은 <strong>세 겹</strong>으로 나눠 들고 있다.</p>
+
+    <div class="diagram">  ① fd 테이블            ② 열린 파일 서술자          ③ inode
+  (프로세스마다 하나)      (offset · 플래그)          (파일 실체, 이름 아님)
+  ┌─────────────┐
+  │ 0 ──────────┼───┐
+  │ 1 ──────────┼───┼──▶ ┌──────────────────┐
+  │ 2 ──────────┼───┘    │ offset : 4096    │      ┌──────────────┐
+  │ 3 ──────────┼──────▶ │ flags  : O_WRONLY│ ───▶ │  inode 12345 │
+  └─────────────┘        └──────────────────┘   ┌─▶│ 크기·권한·   │
+    프로세스 A                                   │  │ 데이터 블록  │
+                                                 │  └──────────────┘
+  ┌─────────────┐        ┌──────────────────┐    │        ▲
+  │ 3 ──────────┼──────▶ │ offset : 0       │ ───┘        │
+  └─────────────┘        │ flags  : O_RDONLY│      /var/log/app.log
+    프로세스 B           └──────────────────┘      (이름은 밖에서 가리킬 뿐)</div>
+
+    <ul>
+      <li><strong>① fd 테이블</strong> — 프로세스마다 하나. "3번 칸 = 저기" 정도의 포인터 배열이다. 여기에만 <code>FD_CLOEXEC</code>(05절에 나온다) 같은 <em>디스크립터 자체</em>의 속성이 붙는다.</li>
+      <li><strong>② 열린 파일 서술자</strong> — <strong>지금 어디까지 읽었는지(offset)</strong>와 열 때 준 플래그를 들고 있다. 커널 전역 테이블에 있다. 플래그에는 <code>O_APPEND</code>(항상 끝에 쓰기), <code>O_NONBLOCK</code>(데이터가 없으면 기다리지 말고 즉시 돌아오기) 같은 것들이 들어간다 — <strong>이건 번호가 아니라 서술자의 성질</strong>이라, 같은 서술자를 가리키는 번호가 여럿이면 전부에게 한꺼번에 적용된다.</li>
+      <li><strong>③ inode</strong> — 파일의 실체. 크기 · 권한 · 실제 데이터 블록 위치. 파일 하나당 하나다. <strong>이름은 여기 없다</strong> — 경로는 밖에서 inode를 가리키는 꼬리표일 뿐이라, 이름이 둘이어도(하드 링크) inode는 하나다.</li>
+    </ul>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 이름이 함정이다</span>
+      <p>영어로 fd는 file <strong>descriptor</strong>, ②는 open file <strong>description</strong> — 한 글자 차이인데 완전히 다른 것이다. 이 문서에서는 헷갈리지 않도록 fd는 "<strong>번호</strong>", ②는 "<strong>서술자</strong>"로만 부른다. 막히면 이것만 떠올리면 된다 — <strong>번호는 프로세스 안에만 있고, 서술자는 커널에 있다.</strong></p>
+    </div>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰</span>
+      <p><strong>fd 를 복사한다는 것은 ①의 칸을 복사하는 것이지, ②나 ③을 복사하는 게 아니다.</strong> 그래서 복사된 두 fd 는 <strong>같은 offset 을 공유</strong>한다. 반대로 같은 파일을 <code>open()</code> 두 번 하면 ②가 두 개 생기므로 offset 은 따로 논다 — <strong>③은 여전히 하나다.</strong> 여기서 갈라지는 두 갈래가 뒤에 나올 리다이렉션 · 상속 · 누수를 전부 설명한다.</p>
+    </div>
+
+    <h3>직접 확인해 보자</h3>
+
+    <div class="box note">
+      <span class="tag">📎 관용구: <code>lseek(fd, 0, SEEK_CUR)</code></span>
+      <p><code>lseek(fd, 이동량, 기준점)</code> = 서술자의 offset을 옮기는 시스템 콜. 옮긴 <strong>뒤의 위치를 돌려주므로</strong>, 이동량 <code>0</code> · 기준점 "현재 위치"로 부르면 <strong>"움직이지 말고 지금 위치만 알려 줘"</strong>가 된다. ②를 직접 들여다보는 유일한 방법이라 아래 예제에서 계속 쓴다.</p>
+    </div>
+
+    <p class="code-label">① 두 번 open — 서술자가 둘, offset 도 따로</p>
+<pre><code><span class="c-kw">import</span> os
+a = <span class="c-fn">open</span>(<span class="c-str">"/tmp/x"</span>, <span class="c-str">"rb"</span>)
+b = <span class="c-fn">open</span>(<span class="c-str">"/tmp/x"</span>, <span class="c-str">"rb"</span>)   <span class="c-com"># 같은 파일, 다른 서술자</span>
+
+os.<span class="c-fn">read</span>(a.<span class="c-fn">fileno</span>(), <span class="c-num">10</span>)      <span class="c-com"># raw fd 로 10바이트</span>
+<span class="c-fn">print</span>(os.<span class="c-fn">lseek</span>(a.<span class="c-fn">fileno</span>(), <span class="c-num">0</span>, os.SEEK_CUR),
+      os.<span class="c-fn">lseek</span>(b.<span class="c-fn">fileno</span>(), <span class="c-num">0</span>, os.SEEK_CUR))   <span class="c-com"># 10 0  ← 서로 영향 없음</span></code></pre>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 왜 <code>a.read(10)</code> 이 아니라 <code>os.read()</code> 인가</span>
+      <p>파이썬의 파일 객체는 <strong>버퍼드</strong>다 — <code>a.read(10)</code>을 부르면 커널에서는 10바이트가 아니라 <strong>4096바이트를 통째로 미리 읽어 온다.</strong> 그래서 <code>a.tell()</code>은 10을 보여주지만(버퍼 잔량을 빼서 보정한 <em>유저 공간</em> 값), 커널의 실제 offset은 4096이다.</p>
+<pre><code>a.<span class="c-fn">read</span>(<span class="c-num">10</span>)
+<span class="c-fn">print</span>(a.<span class="c-fn">tell</span>())                              <span class="c-com"># 10   ← 파이썬이 보여주는 값</span>
+<span class="c-fn">print</span>(os.<span class="c-fn">lseek</span>(a.<span class="c-fn">fileno</span>(), <span class="c-num">0</span>, os.SEEK_CUR))  <span class="c-com"># 4096 ← ②의 진짜 값</span></code></pre>
+      <p>②를 이야기하는 자리에서 <code>tell()</code>을 쓰면 ②가 아닌 것을 보여주게 된다. <strong>번호와 서술자를 섞어 쓰는 코드가 위험한 이유</strong>가 여기 압축돼 있다 — 라이브러리가 버퍼에 들고 있는 것과 커널이 아는 것이 다르다.</p>
+    </div>
+
+    <p class="code-label">② dup — 번호는 둘, 서술자는 하나, offset 은 공유</p>
+<pre><code>a = <span class="c-fn">open</span>(<span class="c-str">"/tmp/x"</span>, <span class="c-str">"rb"</span>)
+fd2 = os.<span class="c-fn">dup</span>(a.<span class="c-fn">fileno</span>())     <span class="c-com"># 번호표만 한 장 더 뽑는다</span>
+os.<span class="c-fn">read</span>(a.<span class="c-fn">fileno</span>(), <span class="c-num">10</span>)
+
+<span class="c-fn">print</span>(os.<span class="c-fn">lseek</span>(fd2, <span class="c-num">0</span>, os.SEEK_CUR))  <span class="c-com"># 10 ← 건드리지도 않은 fd2 가 움직였다</span></code></pre>
+
+    <div class="box analogy">
+      <span class="tag">🏨 비유 — 클로크룸을 한 겹 늘려서</span>
+      <p><strong>번호표(①)</strong> 뒤에는 접수대에 붙은 <strong>접수 전표(②)</strong>가 있다. 전표에는 "이 손님이 어디까지 꺼내 갔는지, 맡길 때 조건이 무엇이었는지"가 적혀 있다. 그리고 옷걸이에 걸린 <strong>실제 코트(③)</strong>가 있다.</p>
+      <p><code>dup()</code> = 같은 <strong>전표</strong>를 가리키는 번호표를 한 장 더 뽑는다 → 전표가 하나이므로 위치도 하나. 두 번 <code>open()</code> = <strong>같은 코트 한 벌</strong>에 대해 전표를 새로 한 장 더 쓴다 → 전표가 둘이라 위치는 따로, <strong>코트는 여전히 한 벌.</strong></p>
+    </div>
+
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각 — 여러 워커가 같은 로그 파일에 쓸 때</span>
+      <p>gunicorn 워커 4개가 같은 로그 파일에 쓰는데 왜 서로를 안 뭉갤까. 답은 offset 공유가 아니라 <strong><code>O_APPEND</code></strong>다. 이 플래그는 <strong>"파일 끝으로 이동"과 "쓰기"를 커널이 원자적으로 묶어</strong> 주므로, 서술자를 공유하든(fork로 물려받음) 각자 열든 둘 다 안전하다.</p>
+      <p>이게 중요한 이유는 gunicorn의 기본 설정(<code>preload_app = False</code>)에서는 <strong>Django 앱이 fork 이후 각 워커에서 로드</strong>되기 때문이다. 즉 로그 파일은 "워커마다 따로 <code>open()</code>"되는 쪽에 해당한다. 그런데도 멀쩡한 건 <code>logging.FileHandler</code>의 기본이 <code>mode='a'</code>(= <code>O_APPEND</code>)이기 때문이다.</p>
+      <p><strong>그래서 내가 할 일</strong> — 로그나 감사 기록을 직접 여는 코드를 짤 때 <code>'w'</code>가 아니라 <code>'a'</code>인지 확인하는 것. 멀티 워커에서 <code>'w'</code>는 조용히 서로의 기록을 깎아 먹는다. offset 공유는 <code>O_APPEND</code> 없이 열었을 때만 의미가 있고, 로그 용도로는 애초에 그렇게 열지 않는다.</p>
+    </div>
+  </section>
+
+  <section id="swap">
+    <h2 class="sec"><span class="num">04</span>번호 배정과 바꿔치기</h2>
+    <p class="kicker">리다이렉션과 파이프는 같은 도구 하나로 만들어진다</p>
+
+    <p>POSIX는 <code>open()</code>이 어떤 번호를 줄지까지 못 박아 뒀다. <strong>그 프로세스에서 현재 쓰이지 않는 번호 중 가장 작은 것</strong>이다. 구현 재량이 아니라 규약이다.</p>
+
+<pre><code>f1 = <span class="c-fn">open</span>(<span class="c-str">"/tmp/a"</span>, <span class="c-str">"w"</span>)
+<span class="c-fn">print</span>(f1.fileno())   <span class="c-com"># 3   ← 0,1,2 다음으로 가장 작은 빈 번호</span>
+f1.<span class="c-fn">close</span>()
+
+f2 = <span class="c-fn">open</span>(<span class="c-str">"/tmp/b"</span>, <span class="c-str">"w"</span>)
+<span class="c-fn">print</span>(f2.fileno())   <span class="c-com"># 3   ← 방금 비워진 번호가 즉시 재사용된다</span></code></pre>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 번호 재사용이 만드는 버그</span>
+      <p>닫힌 번호가 즉시 재사용된다는 것은, <strong>이미 닫은 fd 번호를 어딘가에 들고 있다가 나중에 쓰면 전혀 엉뚱한 대상을 건드린다</strong>는 뜻이다. 01절에서 본 대로 <strong>fd 테이블은 스레드끼리 공유</strong>하므로 멀티스레드에서 특히 위험하다 — 스레드 A가 3번을 닫는 순간 스레드 B가 연 소켓이 3번을 받고, A의 뒤늦은 <code>write(3, …)</code>가 그 소켓으로 나간다. 로그 한 줄이 남의 HTTP 응답에 섞여 나가는 식이다. Python에서는 raw fd 번호 대신 파일 객체 · 소켓 객체를 넘기는 것으로 대부분 피할 수 있다.</p>
+    </div>
+
+    <h3>리다이렉션의 진짜 축은 "예약석 + 바꿔치기"다</h3>
+
+    <p>리다이렉션이 성립하는 이유는 방금 본 "가장 작은 빈 번호" 규칙이 <strong>아니다.</strong> 진짜 축은 <strong>0 · 1 · 2 예약석 규약</strong>이다. 프로그램은 자기 출력이 어디로 가는지 확인하지 않고 <strong>무조건 1번에 쓴다.</strong> 그러니 프로그램을 띄우기 <strong>직전에 1번 칸의 내용만 바꿔치기하면</strong>, 프로그램은 아무것도 모른 채 파일에 쓴다.</p>
+
+    <p>그 바꿔치기 도구가 <code>dup2()</code>다. <code>dup2(oldfd, newfd)</code>는 <strong>"newfd 번 칸이 oldfd 와 같은 서술자를 가리키게 하라. 이미 열려 있으면 조용히 닫고 덮어써라"</strong>이고, 이 닫고-덮어쓰기가 <strong>원자적</strong>이다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 원자적(atomic)</span>
+      <p><strong>원자적</strong> = 중간 상태가 남의 눈에 보이지 않는다. Django의 <code>transaction.atomic</code>과 같은 뜻이다. <code>close(1)</code>과 <code>dup(fd)</code>를 따로 부르면 <strong>그 찰나에</strong> 다른 스레드가 파일을 열어 1번을 채 갈 수 있다 — 그러면 내 출력이 남의 파일로 간다. <code>dup2</code>는 그 틈 자체를 없앤다.</p>
+    </div>
+
+<pre><code><span class="c-com"># 쉘이 python app.py &gt; out.log 를 실행할 때 하는 일</span>
+fd = os.<span class="c-fn">open</span>(<span class="c-str">"out.log"</span>, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, <span class="c-num">0o666</span>)
+os.<span class="c-fn">dup2</span>(fd, <span class="c-num">1</span>)      <span class="c-com"># 1번(stdout) 칸이 out.log 를 가리키게 한다</span>
+os.<span class="c-fn">close</span>(fd)         <span class="c-com"># 원본 번호는 이제 필요 없다</span>
+<span class="c-com"># 이제 exec 로 python 을 띄운다. python 은 아무것도 모른 채 1번에 쓴다.</span></code></pre>
+
+    <div class="box warn">
+      <span class="tag">⚠️ <code>os.open</code> 의 mode 를 빠뜨리면 실행 권한이 붙는다</span>
+      <p><code>os.open</code>의 mode 기본값은 <code>0o777</code>이라, 생략하면 umask 0022 환경에서 <strong>0755짜리 로그 파일</strong>이 만들어진다. 쉘은 <code>0o666</code>으로 열어 0644를 만든다. 쉘 동작을 재현하는 코드라면 쉘과 같은 값을 줘야 한다.</p>
+    </div>
+
+    <p>여기서 유명한 함정이 나온다. 쉘은 리다이렉션을 <strong>왼쪽에서 오른쪽 순서로</strong> 처리한다.</p>
+
+    <div class="split">
+      <div class="card cmd">
+        <h4>❌ <code>cmd 2&gt;&amp;1 &gt; out.log</code></h4>
+        <p style="font-size:15px;margin:4px 0 0">stderr 는 <strong>터미널에 남는다</strong></p>
+        <ul>
+          <li>1) <code>2&gt;&amp;1</code> — 이 시점의 1번은 아직 터미널. 2번을 터미널에 붙인다</li>
+          <li>2) <code>&gt; out.log</code> — 1번만 파일로 옮긴다</li>
+          <li>2번은 여전히 터미널을 가리킨 채다</li>
+        </ul>
+      </div>
+      <div class="card qry">
+        <h4>✅ <code>cmd &gt; out.log 2&gt;&amp;1</code></h4>
+        <p style="font-size:15px;margin:4px 0 0">둘 다 파일로 간다</p>
+        <ul>
+          <li>1) <code>&gt; out.log</code> — 1번을 파일로</li>
+          <li>2) <code>2&gt;&amp;1</code> — 2번을 "지금의 1번"에 붙인다 = 파일</li>
+          <li>이때 둘은 <strong>서술자를 공유</strong>하므로 offset 도 하나 — 섞여도 서로 덮어쓰지 않는다</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="box tip">
+      <span class="tag">✅ <code>&gt; /dev/null 2&gt;&amp;1</code> 의 나머지 반쪽</span>
+      <p><code>/dev/null</code>은 02절에서 말한 <strong>특수 파일</strong>의 대표다 — 쓰면 전부 버리고, 읽으면 즉시 끝나는 장치다. 파일시스템에 이름이 있으니 그냥 <code>open()</code>할 수 있고, 그 순간 fd 하나가 된다. 그래서 <code>&gt; /dev/null 2&gt;&amp;1</code>은 "1번을 버리는 장치에 붙이고, 2번도 같은 곳에 붙여라"가 된다. 출력을 없애는 특별한 문법이 아니라 <strong>그냥 리다이렉션</strong>이다. 같은 계열로 <code>/dev/urandom</code>(읽으면 난수), <code>/dev/stdin</code>(0번을 파일처럼 부를 수 있는 이름)이 있다.</p>
+    </div>
+
+    <h3>파이프도 같은 도구로 만들어진다</h3>
+
+    <p>00절에서 "왜 파이프도 파일인가"를 묻고 시작했다. 답은 여기서 나온다.</p>
+
+    <p><code>pipe()</code>는 <strong>fd 두 개를 한꺼번에 만든다</strong> — 읽는 쪽과 쓰는 쪽. 둘은 커널 안의 버퍼로 이어져 있고, 디스크에도 파일시스템에도 아무 흔적이 없다. 그런데 <code>read</code> · <code>write</code> · <code>close</code>가 그대로 통한다.</p>
+
+<pre><code>r, w = os.<span class="c-fn">pipe</span>()        <span class="c-com"># 예: (3, 4) — 번호 두 개</span>
+os.<span class="c-fn">write</span>(w, <span class="c-str">b"hello"</span>)
+<span class="c-fn">print</span>(os.<span class="c-fn">read</span>(r, <span class="c-num">5</span>))    <span class="c-com"># b'hello'</span></code></pre>
+
+    <p>쉘이 <code>ls | wc -l</code>을 실행할 때 하는 일이 바로 이 두 절의 조합이다.</p>
+
+    <div class="diagram">  쉘: r, w = pipe()
+   │
+   ├─ fork ──▶ ls    :  dup2(w, 1)  ─ 1번(stdout)을 파이프 쓰는 쪽에 붙임
+   │                    close(r), close(w)  ─ 원본 번호는 반납
+   │                    exec("ls")  ─ ls 는 그냥 1번에 쓴다
+   │
+   └─ fork ──▶ wc -l :  dup2(r, 0)  ─ 0번(stdin)을 파이프 읽는 쪽에 붙임
+                        close(r), close(w)
+                        exec("wc")  ─ wc 는 그냥 0번을 읽는다
+
+  ls 도 wc 도 "파이프"라는 것을 모른다. 아는 것은 0번과 1번뿐이다.</div>
+
+    <p>이것이 02절에서 말한 "<code>wc -l</code>은 입력이 무엇인지 알 필요가 없다"의 실물이다. 두 프로그램 어느 쪽도 파이프용으로 고쳐 쓰지 않았다 — <strong>번호 칸만 바꿔치기했을 뿐이다.</strong></p>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 그래서 <code>BrokenPipeError</code> 가 난다</span>
+      <p><code>python app.py | head -3</code>에서 <code>head</code>는 세 줄만 읽고 끝나면서 자기 쪽 fd를 닫는다. 읽는 쪽이 전부 닫힌 파이프에 쓰면 커널이 <code>EPIPE</code>를 돌려주고, 파이썬은 이걸 <code>BrokenPipeError</code>로 올린다. 버그가 아니라 <strong>"받는 사람이 갔다"는 정상 신호</strong>다. 파이프의 양쪽 끝이 각각 fd라서 생기는 현상이라, 파일에 쓸 때는 절대 안 난다.</p>
+    </div>
+  </section>
+
+  <section id="inherit">
+    <h2 class="sec"><span class="num">05</span>fork · exec 과 상속</h2>
+    <p class="kicker">gunicorn 워커가 리슨 소켓을 공유하는 원리</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: fork 와 exec</span>
+      <p><strong><code>fork()</code></strong> = 지금 프로세스를 통째로 복제해 자식을 만든다. <strong><code>exec()</code></strong> = 지금 프로세스의 내용물을 다른 프로그램으로 갈아끼운다. 유닉스에서 새 프로그램을 실행한다는 건 이 둘의 조합이다 — 먼저 나를 복제하고, 복제본을 원하는 프로그램으로 덮어쓴다.</p>
+    </div>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 리슨 소켓과 <code>accept()</code></span>
+      <p>서버가 포트를 여는 일은 세 단계다. <code>socket()</code> = 통신용 fd를 하나 만든다 → <code>bind(:8000)</code> = 그 fd에 "8000번 포트"라는 주소를 붙인다 → <code>listen()</code> = "이제 접속을 받겠다"고 선언한다. 여기까지 fd는 <strong>하나</strong>이고, 이걸 <strong>리슨 소켓</strong>이라 부른다.</p>
+      <p>리슨 소켓은 데이터를 주고받지 않는다. 손님이 오면 커널이 <strong>대기 줄</strong>에 세워 두고, 서버가 <code>accept()</code>를 부를 때마다 <strong>손님 한 명당 새 fd를 하나씩</strong> 만들어 준다. 그래서 동시 접속 1,000개는 fd 1,001개다 — 리슨 소켓 1 + 접속 1,000.</p>
+    </div>
+
+    <p><code>fork()</code>하면 <strong>fd 테이블(①)이 통째로 복사</strong>된다. 번호도 그대로, 가리키는 곳도 그대로다. 즉 부모와 자식은 <strong>같은 서술자(②)를 공유</strong>한다.</p>
+
+    <p>이게 prefork 방식 웹서버의 전부다. prefork는 <strong>요청을 받기 전에 워커 프로세스를 미리 <code>fork</code>해 두는 방식</strong>으로, gunicorn의 기본 <code>sync</code> 워커가 이것이다. 마스터가 리슨 소켓을 하나 만든 뒤 워커를 <code>fork()</code>하면 모든 워커가 <strong>같은 리슨 소켓</strong>을 물려받는다. 워커들이 각자 <code>accept()</code>를 호출하면 <strong>커널이 대기 줄에서 하나씩 꺼내 나눠 준다.</strong> 워커 간 통신도, 별도 분배기도 필요 없다.</p>
+
+    <div class="diagram">  gunicorn master
+   │  socket() → bind(:8000) → listen()   ⇒ fd 5 (리슨 소켓)
+   │
+   ├── fork() ──▶ worker 1   fd 5 ─┐
+   ├── fork() ──▶ worker 2   fd 5 ─┼──▶ 같은 서술자 = 같은 대기 줄
+   └── fork() ──▶ worker 3   fd 5 ─┘
+                                     각 워커가 accept() → 커널이 분배
+                                     accept() 마다 새 fd 하나씩 생김</div>
+
+    <h3>exec 은 다르다 — close-on-exec</h3>
+
+    <p><code>exec()</code>는 기본적으로 fd를 <strong>그대로 유지</strong>한다(프로그램만 바뀌지 fd 테이블은 남는다). 그래서 04절의 리다이렉션이 통한다 — 쉘이 1번을 바꿔 놓고 exec 하면 새 프로그램이 그 상태를 물려받는다.</p>
+
+    <p>그런데 이 "유지"가 대부분의 경우엔 사고다. DB 커넥션 소켓이나 비밀 키 파일이 <code>exec</code>한 자식에게 딸려 가면 곤란하다. 그래서 fd마다 <strong><code>FD_CLOEXEC</code></strong>(close-on-exec) 플래그가 있다 — 켜져 있으면 <code>exec</code> 순간 커널이 그 fd를 닫는다. 03절 그림에서 이 플래그가 <strong>①에만</strong> 붙는다고 했던 이유가 여기 있다. "이 번호표를 새 프로그램에 넘길 것인가"는 <strong>번호표의 속성이지 코트의 속성이 아니다.</strong></p>
+
+    <div class="box tip">
+      <span class="tag">✅ Python 은 이미 안전한 쪽으로 바꿔 놨다</span>
+      <p><strong>Python 3.4 (PEP 446)</strong>부터 파이썬이 만드는 fd는 <strong>기본적으로 상속되지 않는다</strong>(close-on-exec이 켜진 채로 만들어진다). 그전에는 <code>subprocess</code>로 자식을 띄우면 부모의 소켓·파일이 줄줄이 새어 나가서, 부모를 재시작해도 자식이 포트를 붙들고 있어 <code>Address already in use</code>가 나는 고전적인 사고가 있었다. 지금은 명시적으로 물려주고 싶을 때만 <code>os.set_inheritable(fd, True)</code>를 쓴다.</p>
+    </div>
+  </section>
+
+  <section id="limits">
+    <h2 class="sec"><span class="num">06</span>한계 — EMFILE 과 ENFILE</h2>
+    <p class="kicker">이하 리눅스 · systemd 기준이다 (macOS 차이는 절 끝에)</p>
+
+    <p>fd는 배열의 인덱스다. 배열은 무한하지 않다. 그래서 두 종류의 벽이 있다.</p>
+
+    <div class="split">
+      <div class="card cmd">
+        <h4>🔴 EMFILE (errno 24)</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>프로세스</strong> 한도 초과</p>
+        <ul>
+          <li>Python: <code>OSError: [Errno 24] Too many open files</code></li>
+          <li>한도: <code>ulimit -n</code> = <code>RLIMIT_NOFILE</code></li>
+          <li>거의 모든 실무 사고가 이쪽이다</li>
+        </ul>
+      </div>
+      <div class="card qry">
+        <h4>🟠 ENFILE (errno 23)</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>시스템 전체</strong> 한도 초과</p>
+        <ul>
+          <li>메시지: <code>File table overflow</code></li>
+          <li>한도: <code>/proc/sys/fs/file-max</code></li>
+          <li>드물다. 보면 호스트 전체가 이미 아프다</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>내 한도 확인하기</h3>
+
+<pre><code><span class="c-com"># 지금 쉘의 프로세스 한도 (soft / hard)</span>
+ulimit -Sn ; ulimit -Hn
+
+<span class="c-com"># 돌고 있는 프로세스의 실제 한도와 현재 사용량 (리눅스)</span>
+grep <span class="c-str">'open files'</span> /proc/$PID/limits
+ls /proc/$PID/fd | wc -l
+
+<span class="c-com"># 시스템 전체 — 할당됨 / 0 / 최대</span>
+cat /proc/sys/fs/file-nr</code></pre>
+
+    <div class="box note">
+      <span class="tag">📎 용어: soft limit 과 hard limit</span>
+      <p><strong>soft</strong> = 지금 실제로 적용되는 값. <strong>hard</strong> = 프로세스가 스스로 soft를 올릴 수 있는 천장. 권한 없는 프로세스도 soft를 hard까지는 자유롭게 올릴 수 있고, hard 자체를 올리려면 root 권한(정확히는 <code>CAP_SYS_RESOURCE</code>)이 필요하다.</p>
+    </div>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 한도는 "개수"가 아니라 "번호"다</span>
+      <p>대부분이 <code>ulimit -n</code>을 "동시에 몇 개까지 열 수 있나"로 읽지만, man 페이지의 정의는 다르다 — <strong>"이 프로세스가 열 수 있는 파일 디스크립터 <em>번호</em>의 최댓값보다 1 큰 값"</strong>이다. 개수가 아니라 <strong>번호의 상한</strong>이다.</p>
+      <p>확인해 보면 명확하다. 한도를 64로 낮춘 뒤, <strong>파일은 몇 개 안 열었는데</strong> 번호만 큰 곳으로 점프시켜 보면 거부된다.</p>
+<pre><code>resource.<span class="c-fn">setrlimit</span>(resource.RLIMIT_NOFILE, (<span class="c-num">64</span>, hard))
+os.<span class="c-fn">dup2</span>(f.<span class="c-fn">fileno</span>(), <span class="c-num">63</span>)    <span class="c-com"># OK</span>
+os.<span class="c-fn">dup2</span>(f.<span class="c-fn">fileno</span>(), <span class="c-num">64</span>)    <span class="c-com"># EBADF ← 열린 개수와 무관하게 거부</span></code></pre>
+      <p>즉 <strong>soft 1024 = "fd 번호는 1023까지"</strong>다. 이 사실이 다음 이야기의 열쇠다.</p>
+    </div>
+
+    <h3>왜 아직도 1024인가</h3>
+
+    <p>systemd 240 이후 리눅스 서비스의 기본값은 <strong>soft 1024 · hard 524288</strong>이다. 하드는 50만 개를 허용하면서 소프트만 1024로 묶어 둔 게 이상해 보인다. 이유는 30년 전 API 하나 때문이다.</p>
+
+    <p><code>select()</code>는 <strong>"이 fd들 중에 읽을 게 생긴 놈이 있으면 깨워 줘"</strong>라고 커널에 묻는 API다. 비동기 서버의 조상이고 지금은 <code>epoll</code>로 대체됐다(08절). 문제는 감시할 목록을 받는 자료구조 <code>fd_set</code>이다 — 이건 <strong>길이 1024짜리 비트 배열</strong>이고, <strong>fd 번호를 그대로 배열 인덱스로 쓴다.</strong> 3번 fd를 감시하려면 3번째 비트를 켜는 식이다. 파이썬으로 치면 <code>bitmap[fd] = 1</code>인데 리스트 길이가 1024로 고정된 셈이다.</p>
+
+<pre><code><span class="c-com">// C 로 실제 크기를 재 보면</span>
+<span class="c-fn">printf</span>(<span class="c-str">"%zu bytes = %zu bits"</span>, <span class="c-kw">sizeof</span>(fd_set), <span class="c-kw">sizeof</span>(fd_set)*<span class="c-num">8</span>);
+<span class="c-com">// 128 bytes = 1024 bits   ← FD_SETSIZE 와 정확히 일치</span></code></pre>
+
+    <p>그래서 1500번 fd를 넘기면 감시가 되는 게 아니라 <strong>배열 밖 메모리를 덮어쓴다.</strong> 파이썬이라면 <code>IndexError</code>가 났을 자리에서, C는 조용히 남의 메모리를 망가뜨린다. 리눅스 man 페이지는 이렇게 못 박아 뒀다 — <em>"select()는 <code>FD_SETSIZE</code>(1024) 미만의 fd 번호만 감시할 수 있고, 이 제한은 바뀌지 않는다."</em></p>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 여기서 인과가 이어진다</span>
+      <p>한도는 개수가 아니라 번호의 상한이다. 그러므로 <strong>soft 1024는 곧 "fd 번호는 1023까지"</strong>이고, 이것이 <code>select()</code>의 <code>FD_SETSIZE</code> 1024와 <strong>정확히 맞물린다.</strong> 소프트 한도 1024는 <strong>아직도 <code>select()</code>를 쓰는 옛 프로그램이 조용히 메모리를 깨뜨리지 않도록 막아 주는 안전벨트</strong>인 것이다. 그러면서 하드를 524288로 크게 열어 둔 이유는, 현대적인 프로그램은 시작할 때 스스로 소프트를 하드까지 올리면 되기 때문이다. <strong>"기본은 안전하게, 원하면 스스로 풀어라"</strong>가 이 두 숫자의 뜻이다.</p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><div class="big">1024</div><div class="lbl">systemd 기본 soft</div></div>
+      <div class="stat"><div class="big">524288</div><div class="lbl">systemd 기본 hard — 프로세스가 스스로 올릴 수 있는 천장</div></div>
+      <div class="stat"><div class="big">1048576</div><div class="lbl"><code>fs.nr_open</code> — hard 를 이 위로는 못 올린다는 커널 상한</div></div>
+    </div>
+
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각 — 우리 스택에서 어디를 만지나</span>
+      <ul>
+        <li><strong>gunicorn · Django</strong> — gunicorn은 <strong>스스로 한도를 올리지 않는다.</strong> 밖에서 넣어 줘야 한다. systemd라면 유닛 파일에 <code>LimitNOFILE=65535</code>, ECS라면 task definition의 <code>ulimits</code>에 <code>nofile</code> 항목. 값은 <strong>(요청당 fd 수) × (워커당 동시 요청 수) + 여유</strong>로 잡는다. 동기 워커는 워커당 동시 요청이 1이라 보통 수백이면 충분하고, 문제는 거의 항상 <strong>비동기 워커 · 누수 · 컨테이너 하드 리밋</strong> 쪽이다.</li>
+        <li><strong>nginx</strong> — <code>worker_rlimit_nofile</code>을 <code>worker_connections</code>의 최소 2배로 잡는다. 리버스 프록시(요청을 받아 뒤쪽 서버로 넘기는 중계 서버) 모드에서는 요청 하나가 <strong>클라이언트 소켓 + 업스트림 소켓 = 2개</strong>를 동시에 쓰기 때문이다. 여기에 로그 파일 · 임시 파일 몫을 더한다.</li>
+        <li><strong>컨테이너</strong> — 실제 적용값은 앱 설정과 런타임(systemd · Docker · ECS)의 하드 리밋 중 <strong>낮은 쪽</strong>이다. 앱 설정만 올려 놓고 안 먹는 사고가 여기서 난다. 컨테이너 안에서 <code>ulimit -n</code>이 호스트 값을 보여주는 경우도 있으니, 반드시 <strong>돌고 있는 프로세스의 <code>/proc/$PID/limits</code></strong>로 확인한다.</li>
+      </ul>
+    </div>
+
+    <div class="box warn">
+      <span class="tag">⚠️ macOS 는 이 이야기가 통하지 않는다</span>
+      <p>맥에서 <code>ulimit -Hn</code>을 치면 <code>unlimited</code>가 나온다. hard가 사실상 무한이라 "스스로 hard까지 올린다"는 코드가 <strong>성공은 하지만 의미가 없다.</strong> 실제 상한은 <code>sysctl kern.maxfilesperproc</code>이 쥐고 있다. 이 절의 숫자들은 리눅스 · systemd 환경 이야기이고, 우리 서비스가 도는 곳도 그쪽이다.</p>
+    </div>
+  </section>
+
+  <section id="leak">
+    <h2 class="sec"><span class="num">07</span>누수를 찾아내는 법</h2>
+    <p class="kicker">단조 증가인가, 부하를 따라 오르내리는가</p>
+
+    <p>한도를 올려서 해결되는 경우는 <strong>정상 부하가 정말 커진 경우</strong>뿐이다. 그게 아니면 어딘가 fd를 열고 안 닫고 있고, 한도를 두 배로 올려도 사고가 두 배 늦게 날 뿐이다. 구분법은 하나다 — <strong>열린 개수가 시간에 따라 단조 증가하면 누수다.</strong></p>
+
+<pre><code><span class="c-com"># 1분 간격으로 세 보기 — 계속 늘면 누수</span>
+<span class="c-kw">while</span> true; <span class="c-kw">do</span> echo <span class="c-str">"$(date +%T) $(ls /proc/$PID/fd | wc -l)"</span>; sleep 60; <span class="c-kw">done</span>
+
+<span class="c-com"># 무엇이 열려 있나 — 종류별로 뭉쳐서 센다</span>
+ls -l /proc/$PID/fd | awk <span class="c-str">'{print $11}'</span> | sed <span class="c-str">'s/\[[0-9]*\]/[]/'</span> | sort | uniq -c | sort -rn
+<span class="c-com">#   2314 socket:[]        ← 소켓이 대부분이면 커넥션·외부 API 쪽</span>
+<span class="c-com">#      3 pipe:[]</span>
+<span class="c-com">#      1 /var/log/app.log</span>
+
+<span class="c-com"># macOS 에는 /proc 이 없다 — lsof 를 쓴다</span>
+lsof -p $PID | wc -l</code></pre>
+
+    <div class="box warn">
+      <span class="tag">⚠️ <code>socket:[12345]</code> 의 번호를 지워야 집계가 된다</span>
+      <p><code>/proc/$PID/fd</code>의 소켓은 <code>socket:[12345]</code>처럼 <strong>매번 다른 번호</strong>로 나온다. 번호를 그대로 두고 세면 소켓 수천 개가 전부 별개 행으로 남아 집계가 되지 않는다. 위 <code>sed</code>가 대괄호 안 숫자를 지워 <code>socket:[]</code>로 뭉치는 이유다. (끝자리만 지우는 <code>s/[0-9]*$//</code>는 끝 문자가 <code>]</code>라서 아무것도 못 지운다.)</p>
+    </div>
+
+    <div class="box note">
+      <span class="tag">📎 컨테이너라면 먼저 들어가야 한다</span>
+      <p>위 명령들은 전부 <code>$PID</code>를 안다고 전제한다. ECS·Docker로 돌린다면 그 전에 컨테이너 안으로 들어가야 한다 — <code>aws ecs execute-command … --command /bin/sh</code> 또는 <code>docker exec -it &lt;컨테이너&gt; sh</code>. 그 안에서 <code>pgrep -f gunicorn</code>으로 PID를 찾는다.</p>
+    </div>
+
+    <h3>lsof 로 한 걸음 더</h3>
+
+    <p><code>/proc</code>가 없는 macOS에서도 되고, 리눅스에서도 <code>/proc</code>보다 읽기 쉽다. 핵심은 <strong>FD 열</strong>이다.</p>
+
+<pre><code>$ lsof -p 78523
+COMMAND   PID   USER   FD   TYPE  ...  NAME
+zsh     78523 lonnie  cwd    DIR  ...  /Users/lonnie/Study
+zsh     78523 lonnie  txt    REG  ...  /bin/zsh
+zsh     78523 lonnie    0r   CHR  ...  /dev/null
+zsh     78523 lonnie    1w   REG  ...  /tmp/out.log
+zsh     78523 lonnie    2w   REG  ...  /tmp/out.log     <span class="c-com">← 1w 와 같은 파일</span>
+zsh     78523 lonnie   11u  unix ...  -&gt;0x3d60a210</code></pre>
+
+    <p>맨 아래에서 두 번째 줄이 반갑다면 04절을 제대로 읽은 것이다. <strong><code>1w</code>와 <code>2w</code>가 같은 파일을 가리키는 것 — 이게 <code>&gt; out.log 2&gt;&amp;1</code>의 실물</strong>이다.</p>
+
+    <table>
+      <thead><tr><th>FD 열</th><th>뜻</th><th>한도에 포함?</th></tr></thead>
+      <tbody>
+        <tr><td><code>cwd</code> · <code>rtd</code></td><td>현재 디렉터리 · 루트 디렉터리</td><td>❌ fd 가 아니다</td></tr>
+        <tr><td><code>txt</code> · <code>mem</code></td><td>실행 파일 · 메모리에 매핑된 라이브러리</td><td>❌ fd 가 아니다</td></tr>
+        <tr><td><code>0r</code> <code>1w</code> <code>5u</code></td><td><strong>숫자 = fd 번호</strong>, 뒤 글자는 <code>r</code> 읽기 · <code>w</code> 쓰기 · <code>u</code> 양쪽</td><td>✅ 이것만 센다</td></tr>
+      </tbody>
+    </table>
+
+    <div class="box warn">
+      <span class="tag">⚠️ <code>lsof -p $PID | wc -l</code> 은 과대 계산이다</span>
+      <p>위 표에서 보듯 <code>cwd</code> · <code>txt</code> · <code>mem</code> 행은 <strong>fd가 아니다.</strong> 라이브러리를 많이 쓰는 파이썬 프로세스면 <code>mem</code> 행만 수백 개라, 그냥 세면 실제 fd 수를 크게 부풀린다. 한도와 비교할 숫자를 원한다면 숫자로 시작하는 행만 세야 한다.</p>
+<pre><code>lsof -p $PID | awk <span class="c-str">'$4 ~ /^[0-9]/'</span> | wc -l</code></pre>
+    </div>
+
+<pre><code><span class="c-com"># 소켓만 보기 — 상대가 누구인지, 어떤 상태인지 한눈에</span>
+lsof -p $PID -i -n -P
+
+<span class="c-com"># 지워졌는데 아직 안 닫힌 파일 (리눅스)</span>
+lsof -p $PID | grep deleted</code></pre>
+
+    <div class="box tip">
+      <span class="tag">✅ <code>df</code> 는 꽉 찼다는데 <code>du</code> 는 비어 있을 때</span>
+      <p>고전적인 사고다. 로그 로테이션이 <code>app.log</code>를 지웠는데 <strong>프로세스가 그 파일의 fd를 여전히 들고 있으면</strong>, 이름만 사라지고 데이터 블록은 반납되지 않는다. 03절의 세 겹 구조가 그대로 설명한다 — <strong>이름은 ③(inode)을 가리키는 꼬리표일 뿐</strong>이라, 꼬리표를 떼도 서술자가 살아 있는 한 inode는 죽지 않는다. <code>lsof | grep deleted</code>가 범인을 찍어 주고, 해당 프로세스를 재시작하거나 <code>copytruncate</code>로 로테이션 방식을 바꾸면 공간이 돌아온다.</p>
+    </div>
+
+    <h3>CLOSE_WAIT — 소켓 누수의 지문</h3>
+
+    <p>소켓이 쌓이는 경우, 어느 쪽이 잘못했는지를 <strong>상태 하나로 구분</strong>할 수 있다. TCP 연결을 끊을 때는 양쪽이 각자 "나는 다 보냈다"를 알린다. <strong><code>CLOSE_WAIT</code>는 상대는 알렸는데 우리가 아직 안 알린 상태</strong> — 즉 <strong>우리 코드가 <code>close()</code>를 안 부르고 있다</strong>는 뜻이다.</p>
+
+<pre><code><span class="c-com"># 리눅스</span>
+ss -tanp state close-wait | head
+ss -tan state close-wait | wc -l
+
+<span class="c-com"># macOS 에는 ss 가 없다</span>
+netstat -an | grep -c CLOSE_WAIT</code></pre>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 이 숫자가 계속 늘면 한도를 올려도 소용없다</span>
+      <p><code>CLOSE_WAIT</code>는 <strong>우리가 닫아 주기 전까지 스스로 사라지지 않는다.</strong> 타임아웃도 없다. 그래서 이 상태가 단조 증가하면 <strong>100% 코드 문제</strong>이고, 한도를 올리는 것은 사고를 미루는 것일 뿐이다. 전형적인 원인은 응답 객체·커넥션을 어딘가에 쌓아 두거나, 예외 경로에서 <code>close()</code>를 건너뛰는 코드다.</p>
+      <p>헷갈리기 쉬운 <code>TIME_WAIT</code>는 정반대다 — <strong>우리가 먼저 끊은</strong> 뒤 뒤늦게 도착할 패킷을 대비해 커널이 붙들고 있는 <strong>정상</strong> 상태이고, 스스로 사라진다. 리눅스에서는 이 시간이 <strong>60초로 커널에 박혀 있어</strong> sysctl 로 바꿀 수 없다(흔히 이걸 줄인다고 만지는 <code>tcp_fin_timeout</code> 은 다른 상태를 다룬다). 요약하면 — <strong><code>CLOSE_WAIT</code> 는 우리 탓이고 저절로 안 없어진다. <code>TIME_WAIT</code> 는 정상이고 저절로 없어진다.</strong></p>
+    </div>
+
+    <h3>파이썬에서 나는 전형적인 누수</h3>
+
+    <p>여기서 <strong>진짜 누수</strong>와 <strong>커넥션 낭비</strong>를 구분해야 한다. 둘 다 고쳐야 하지만 증상이 다르다.</p>
+
+    <p class="code-label">❌ 진짜 누수 — 응답 객체를 계속 붙들고 있다</p>
+<pre><code>self.responses = []
+<span class="c-kw">for</span> url <span class="c-kw">in</span> urls:
+    r = requests.<span class="c-fn">get</span>(url, stream=<span class="c-kw">True</span>)
+    self.responses.<span class="c-fn">append</span>(r)     <span class="c-com"># 참조가 살아 있으니 소켓이 안 닫힌다</span>
+<span class="c-com"># 30개 보관 → 열린 소켓 61개. 캐시·인스턴스 속성·전역 리스트가 전형적인 범인.</span></code></pre>
+
+    <p class="code-label">✅ with 로 확실히 닫는다</p>
+<pre><code><span class="c-kw">for</span> url <span class="c-kw">in</span> urls:
+    <span class="c-kw">with</span> requests.<span class="c-fn">get</span>(url, stream=<span class="c-kw">True</span>) <span class="c-kw">as</span> r:
+        <span class="c-fn">save</span>(r.raw)                <span class="c-com"># 30회 반복 후에도 소켓 1개</span></code></pre>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 과장: "응답을 안 닫으면 fd 가 샌다"</span>
+      <p>정확하지 않다. <code>r</code>을 매번 다시 대입하는 루프라면 CPython에서는 직전 응답의 참조가 0이 되면서 소켓이 <strong>즉시 닫힌다</strong> — 30회를 돌려도 소켓은 늘지 않는다. 진짜 대가는 fd가 아니라 <strong>커넥션이 풀로 반환되지 않는 것</strong>이다. keep-alive가 깨져서 매 요청마다 TCP 핸드셰이크를 새로 한다. fd가 실제로 새려면 <strong>참조를 붙들고 있어야</strong> 한다(위 ❌ 예제).</p>
+    </div>
+
+    <div class="box warn">
+      <span class="tag">⚠️ "CPython 은 알아서 닫아 주던데요"</span>
+      <p>CPython은 객체를 가리키는 참조가 몇 개인지 세다가(<strong>참조 카운팅</strong>) 0이 되는 순간 즉시 정리한다. 그래서 <code>data = open(path).read()</code>도 대체로 바로 닫힌다. 하지만 이건 <strong>파이썬 언어의 규칙이 아니라 CPython이라는 구현의 사정</strong>이다. 객체들이 서로를 가리켜 참조 수가 0이 되지 않으면(순환 참조) 정리 시점이 <strong>가비지 컬렉터</strong>에게 넘어가 한참 뒤로 밀리고, PyPy처럼 참조 카운팅을 쓰지 않는 구현에서는 아예 언제 닫힐지 모른다. <strong><code>with</code>는 이 모든 경우에 즉시 닫는 유일한 방법이다.</strong></p>
+    </div>
+
+    <div class="box tip">
+      <span class="tag">✅ 누수를 눈에 보이게 만들기</span>
+      <p>파이썬은 fd가 닫히지 않은 채 회수되면 <code>ResourceWarning: unclosed …</code>을 낸다. 기본적으로 <strong>숨겨져 있어서</strong> 아무도 못 본다. 켜 두면 어느 줄에서 열었는지 traceback이 함께 나와 범인을 바로 찾는다.</p>
+<pre><code>python -X dev -m pytest              <span class="c-com"># 개발 모드 — 경고를 표시한다</span>
+pytest -W always::ResourceWarning    <span class="c-com"># pytest 요약에 띄운다</span></code></pre>
+      <p><strong>다만 이걸로 테스트가 실패하지는 않는다.</strong> <code>ResourceWarning</code>은 객체가 회수될 때(소멸자 안에서) 나기 때문에, <code>-W error</code>로 에러 취급해도 파이썬이 <code>Exception ignored in:</code>만 찍고 넘어간다. 실제로 CI를 <strong>실패시키려면</strong> 테스트 전후로 fd 개수를 재는 fixture를 두는 편이 확실하다.</p>
+<pre><code><span class="c-kw">def</span> <span class="c-fn">count_fds</span>():
+    <span class="c-kw">return</span> <span class="c-fn">len</span>(os.<span class="c-fn">listdir</span>(<span class="c-str">f"/proc/{os.getpid()}/fd"</span>))</code></pre>
+    </div>
+
+    <div class="box note">
+      <span class="tag">📎 우리 스택에서 fd 를 쓰는 것들</span>
+      <p>Django 요청 하나가 처리되는 동안 열려 있는 것들 — 클라이언트 소켓 1, PostgreSQL 커넥션 소켓 1, Redis 소켓, 외부 API 호출 소켓, 로그 파일, 업로드 임시 파일. <strong>워커당 이 합계 × 동시 요청 수</strong>가 그 프로세스의 fd 사용량이고, 06절에서 한도를 정할 때 쓴 그 값이다.</p>
+      <p>DB 쪽은 설정에 따라 다르다. Django의 <code>CONN_MAX_AGE</code>는 커넥션 <em>풀</em>이 아니라 <strong>워커당 커넥션 하나를 요청 사이에도 유지</strong>하는 것이다. <code>0</code>이면 요청이 끝날 때마다 닫으므로 fd를 아끼는 대신 매 요청 접속 비용을 낸다. PgBouncer 같은 풀을 앞에 두면 회계가 또 달라진다.</p>
+    </div>
+  </section>
+
+  <section id="beyond">
+    <h2 class="sec"><span class="num">08</span>추상화의 확장 — epoll · pidfd</h2>
+    <p class="kicker">파일이 아닌 것들이 계속 fd 가 되어 온 이유</p>
+
+    <p>fd가 좋은 추상화였다는 증거는, 리눅스가 <strong>새 기능을 추가할 때마다 그것을 fd로 만들었다</strong>는 데 있다.</p>
+
+    <table>
+      <thead><tr><th>API</th><th>fd 로 표현한 것</th><th>덕분에 가능해진 것</th></tr></thead>
+      <tbody>
+        <tr><td><code>eventfd</code></td><td>단순 알림 카운터</td><td>스레드 간 깨우기를 <code>read</code>로</td></tr>
+        <tr><td><code>timerfd</code></td><td>타이머 만료</td><td>타이머를 다른 fd 들과 똑같이 감시</td></tr>
+        <tr><td><code>signalfd</code></td><td>시그널 수신</td><td>시그널 핸들러 대신 정상 흐름에서 처리</td></tr>
+        <tr><td><code>inotify</code></td><td>파일 변경 감시</td><td><code>uvicorn --reload</code>가 저장 즉시 재시작</td></tr>
+        <tr><td><code>pidfd</code></td><td>프로세스 그 자체</td><td>엉뚱한 프로세스를 죽이는 사고 없이 지목</td></tr>
+      </tbody>
+    </table>
+
+    <p>왜 굳이 fd로 만들까. <strong>이미 존재하는 도구를 전부 물려받기 때문이다.</strong> fd가 되는 순간 <code>epoll</code>로 감시할 수 있고, <code>close()</code>로 정리되며, <code>fork</code> 상속 규칙과 한도 회계가 그대로 적용된다. 새 개념 하나를 기존 우주에 편입시키는 비용이 거의 0이다.</p>
+
+    <div class="box tip">
+      <span class="tag">✅ pidfd 가 푼 문제 — 30년 묵은 경합</span>
+      <p>전통적으로 프로세스는 PID(정수)로 가리켰다. 그런데 프로세스가 죽으면 PID는 <strong>재사용된다.</strong> 그래서 <code>kill(pid, SIGKILL)</code>은 원리적으로 위험하다 — 내가 PID를 확인한 시점과 신호를 보내는 시점 사이에 그 프로세스가 죽고 <strong>다른 프로세스가 같은 번호를 받았다면, 엉뚱한 것을 죽인다.</strong> 배포 스크립트가 남의 프로세스를 죽이는 사고가 이렇게 난다. <code>pidfd</code>(Linux 5.3)는 프로세스를 fd로 잡아 둔다. fd는 <em>번호</em>가 아니라 <strong>그 프로세스 실체</strong>를 붙들기 때문에, 대상이 이미 죽었어도 다른 프로세스로 바뀌어 있지 않다.</p>
+      <p>04절에서 본 "닫힌 fd 번호를 나중에 쓰면 엉뚱한 것을 건드린다"와 <strong>정확히 같은 문제</strong>다. 번호는 재사용되고, 손잡이는 재사용되지 않는다.</p>
+    </div>
+
+    <h3>epoll — 추상화가 자기 자신에게 적용될 때</h3>
+
+    <p>06절에서 <code>select()</code>가 fd 번호 1023까지만 감시할 수 있다는 것을 봤다. 문제는 하나 더 있다. <code>select()</code>는 호출할 때마다 <strong>관심 목록 전체를 커널에 다시 넘기고 전체를 훑는다.</strong> 준비된 fd가 하나뿐이어도 1만 개를 확인하므로, 접속이 늘수록 서버가 느려진다.</p>
+
+    <p><code>epoll</code>(Linux 2.5.44, 2002)과 <code>kqueue</code>(FreeBSD, 2000-07)의 해법은 <strong>관심 목록을 커널에 한 번만 등록해 두는 것</strong>이다. 이후에는 "준비된 것만 줘"라고 물으면 준비된 개수에 비례하는 일만 한다. fd 번호 상한도 없다.</p>
+
+    <div class="diagram">  select()                          epoll
+  ────────                          ─────
+  매 호출마다 전체 fd 목록 전달      epoll_create() ⇒ epoll fd 하나
+  전체를 훑음                        epoll_ctl(ADD) ⇒ 관심 목록은 커널에 상주
+  비용 ∝ 전체 접속 수                epoll_wait()   ⇒ 준비된 것만 돌려받음
+  fd 번호 1023 까지만                비용 ∝ 준비된 접속 수</div>
+
+    <p>여기에는 전제가 하나 붙는다. 감시 대상 fd는 <strong><code>O_NONBLOCK</code>으로 열려 있어야</strong> 한다. "준비됐다"는 통보를 받고 <code>read()</code>했는데 그 사이 데이터가 사라졌을 때, 블로킹 모드면 그 자리에서 <strong>이벤트 루프 전체가 멈춘다</strong> — 커넥션 하나가 서버 전부를 세우는 것이다. 03절에서 본 대로 <code>O_NONBLOCK</code>은 <strong>서술자(②)에 붙는 플래그</strong>다.</p>
+
+    <p>여기서 이 문서 전체를 관통하는 장면이 나온다. <strong><code>epoll_create()</code>가 돌려주는 것도 fd다.</strong> "fd들을 감시하는 장치" 자체가 또 하나의 fd이고, 그래서 epoll 인스턴스를 다른 epoll로 감시할 수도 있다. 추상화가 자기 자신에게 적용되는 것 — 좋은 추상화의 표식이다.</p>
+
+    <div class="box tip">
+      <span class="tag">✅ 우리가 매일 그 위에 서 있다</span>
+      <p>Python의 <code>asyncio</code>는 리눅스에서 <code>epoll</code>을 쓴다(<code>selectors</code> 모듈이 플랫폼에 맞는 최선을 고른다). nginx도, uvicorn도, Redis도 마찬가지다. "비동기 서버가 커넥션 수만 개를 감당한다"는 말의 실체는 <strong>fd 수만 개를 커널에 등록해 두고 준비된 것만 받아 간다</strong>는 뜻이다. 그리고 그러려면 06절의 한도를 반드시 올려 둬야 한다 — 이 두 가지는 세트다.</p>
+    </div>
+  </section>
+
+  <section id="cheatsheet">
+    <h2 class="sec"><span class="num">09</span>한 장 요약 치트시트</h2>
+
+    <div class="tldr">
+      <span class="tag">💬 "운영체제가 리소스를 추상화 하는 방식"</span>
+      <p><strong>커널은 "무엇인가"를 지우고 "어떻게 다루는가"만 남긴다.</strong> 파일 · 소켓 · 파이프 · 타이머 · 프로세스는 내부 구현이 전혀 다르지만, 사용자 프로그램에게는 전부 <strong>작은 정수 하나</strong>로 나온다. 그 정수에는 <code>read</code> · <code>write</code> · <code>close</code>를 할 수 있고, 그게 전부라는 사실이 곧 힘이다 — 프로그램이 상대의 정체를 몰라도 되니 파이프로 아무거나 이어 붙일 수 있고, 커널은 새 개념을 fd로 만들기만 하면 기존 도구 전부를 공짜로 물려줄 수 있다. 대신 정수는 유한하고 명시적으로 반납해야 하며, 그 대가가 <code>Too many open files</code>다.</p>
+    </div>
+
+    <div class="tldr">
+      <span class="tag">🚨 Errno 24 를 봤을 때 순서</span>
+      <p><strong>1. 한도 확인</strong> — <code>grep 'open files' /proc/$PID/limits</code> (앱 설정 말고 <strong>돌고 있는 프로세스</strong> 기준)<br>
+      <strong>2. 현재 개수</strong> — <code>ls /proc/$PID/fd | wc -l</code> → 한도에 붙어 있나? <em>(mac: <code>lsof -p $PID | wc -l</code>)</em><br>
+      <strong>3. 종류 집계</strong> — 소켓이 대부분이면 커넥션·외부 API, 파일이면 핸들 누수<br>
+      <strong>4. 1분 간격 재측정</strong> — <strong>단조 증가면 누수</strong>(코드를 고친다), 부하 따라 오르내리면 사이징(한도를 올린다)</p>
+    </div>
+
+    <table>
+      <thead><tr><th>기억할 것</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>fd 의 정체</td><td>프로세스별 테이블의 인덱스인 작은 정수. 스레드끼리는 이 테이블을 공유한다</td></tr>
+        <tr><td>0 · 1 · 2</td><td>stdin · stdout · stderr. POSIX가 정한 건 <strong>번호</strong>지 "열려 있음"이 아니다</td></tr>
+        <tr><td>세 겹 구조</td><td>fd 테이블(프로세스별) → 서술자(offset · 플래그) → inode(파일 실체)</td></tr>
+        <tr><td><code>dup</code> vs 재<code>open</code></td><td><code>dup</code>은 서술자 하나라 offset 공유. 두 번 <code>open</code>은 서술자 둘이라 offset 따로, inode는 하나</td></tr>
+        <tr><td>번호 배정</td><td>항상 <strong>가장 작은 빈 번호</strong>(POSIX). 닫힌 번호는 즉시 재사용 → 늦게 쓰면 엉뚱한 대상</td></tr>
+        <tr><td>리다이렉션 · 파이프</td><td>둘 다 <code>dup2</code>로 0 · 1 · 2 칸을 바꿔치기하는 것. <code>&gt; f 2&gt;&amp;1</code>은 되고 <code>2&gt;&amp;1 &gt; f</code>는 안 된다(왼→오 순서)</td></tr>
+        <tr><td>상속</td><td><code>fork</code> = fd 테이블 복사(서술자 공유). <code>exec</code> = 유지하되 <code>FD_CLOEXEC</code>는 닫힘. Python 3.4+ 기본은 닫힘</td></tr>
+        <tr><td>두 종류의 벽</td><td><code>EMFILE</code>(24) = 프로세스 한도 <code>ulimit -n</code> · <code>ENFILE</code>(23) = 시스템 한도 <code>fs.file-max</code></td></tr>
+        <tr><td>한도의 정체</td><td>개수가 아니라 <strong>fd 번호의 상한</strong>. 그래서 soft 1024 = "번호는 1023까지"</td></tr>
+        <tr><td>왜 soft 가 1024</td><td><code>select()</code>의 <code>fd_set</code>이 1024비트 배열이고 fd 번호를 인덱스로 쓴다. hard 524288은 앱이 스스로 올리라는 뜻</td></tr>
+        <tr><td>누수 지문</td><td><code>CLOSE_WAIT</code>가 단조 증가 = 우리가 <code>close()</code>를 안 부르는 것(한도 상향 무의미). <code>TIME_WAIT</code>는 정상</td></tr>
+        <tr><td>누수 예방</td><td>항상 <code>with</code>. 응답·커넥션 객체를 리스트나 속성에 쌓아 두지 않기</td></tr>
+        <tr><td>확장</td><td><code>epoll</code> · <code>timerfd</code> · <code>signalfd</code> · <code>pidfd</code> — 그리고 <code>epoll_create()</code>가 돌려주는 것도 fd다</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <h3>더 읽어보기 (출처)</h3>
+  <ul>
+    <li>Ritchie &amp; Thompson — <a href="https://www.nokia.com/bell-labs/about/dennis-m-ritchie/cacm.pdf">The UNIX Time-Sharing System</a>, CACM 17(7), 1974 (fd 의 원 정의와 특수 파일 개념)</li>
+    <li>man7.org — <a href="https://man7.org/linux/man-pages/man2/open.2.html">open(2)</a> (fd 와 열린 파일 서술자의 구분, <code>EMFILE</code> · <code>ENFILE</code> 의 정확한 의미)</li>
+    <li>man7.org — <a href="https://man7.org/linux/man-pages/man2/dup.2.html">dup(2)</a> (offset · 상태 플래그는 공유, close-on-exec 은 비공유, <code>dup2</code> 의 원자적 교체)</li>
+    <li>man7.org — <a href="https://man7.org/linux/man-pages/man2/getrlimit.2.html">getrlimit(2)</a> (<code>RLIMIT_NOFILE</code> 이 개수가 아니라 <strong>번호</strong>의 상한이라는 정의)</li>
+    <li>man7.org — <a href="https://man7.org/linux/man-pages/man2/select.2.html">select(2)</a> (<code>FD_SETSIZE</code> 1024 제한과 "이 제한은 바뀌지 않는다"는 문장)</li>
+    <li>man7.org — <a href="https://man7.org/linux/man-pages/man7/epoll.7.html">epoll(7)</a> (Linux 2.5.44 도입, epoll 인스턴스 자체가 fd 라는 점)</li>
+    <li>man7.org — <a href="https://man7.org/linux/man-pages/man2/pidfd_open.2.html">pidfd_open(2)</a> (Linux 5.3, PID 재사용 문제)</li>
+    <li>man7.org — <a href="https://man7.org/linux/man-pages/man5/proc_sys_fs.5.html">proc_sys_fs(5)</a> (<code>file-max</code> · <code>file-nr</code> · <code>nr_open</code> 기본값 1048576)</li>
+    <li>The Open Group — <a href="https://pubs.opengroup.org/onlinepubs/007904875/functions/open.html">open, POSIX.1</a> ("가장 작은 빈 번호" 규약)</li>
+    <li>systemd — <a href="https://github.com/systemd/systemd/issues/25478">Why is soft LimitNOFILE 1024 by default?</a> (soft 1024 · hard 524288 과 <code>select()</code> 호환이라는 이유)</li>
+    <li>Python — <a href="https://peps.python.org/pep-0446/">PEP 446: Make newly created file descriptors non-inheritable</a> (Python 3.4)</li>
+    <li>Vincent Bernat — <a href="https://vincent.bernat.ch/en/blog/2014-tcp-time-wait-state-linux">Coping with the TCP TIME-WAIT state on busy Linux servers</a> (<code>TIME_WAIT</code> 60초가 커널 상수라는 점, <code>tcp_fin_timeout</code> 과의 혼동)</li>
+    <li>Python — <a href="https://docs.python.org/3/library/exceptions.html#ResourceWarning">ResourceWarning</a> (소멸자에서 발생하므로 에러로 승격돼도 종료 코드가 바뀌지 않는 이유)</li>
+  </ul>
+  <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+</footer>
+
+<script>
+  const links = [...document.querySelectorAll('nav.toc a')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      const a = map.get(e.target.id);
+      if (a && e.isIntersecting) {
+        links.forEach(l => { l.style.color = ''; l.style.fontWeight = ''; });
+        a.style.color = 'var(--accent)';
+        a.style.fontWeight = '700';
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>

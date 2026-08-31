@@ -8,6 +8,7 @@
 
 | # | 키워드 | 날짜 |
 |---|---|---|
+| 09 | [파일 디스크립터 — 커널이 세상을 작은 정수 하나로 줄이는 법](file-descriptor-guide.html) | 2026-08-31 |
 | 08 | [PATCH — HTTP 메서드는 왜 다섯 개뿐일까](patch-http-method-guide.html) | 2026-08-24 |
 | 07 | [멱등성 — 같은 요청이 두 번 와도, 세상은 한 번만 바뀐다](idempotency-guide.html) | 2026-08-11 |
 | 06 | [패킷 — HTTP 요청은 문자열 전송이 아니다](packet-guide.html) | 2026-08-03 |
