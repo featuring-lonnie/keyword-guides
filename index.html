@@ -201,7 +201,7 @@
     <h1>주니어 개발자를 위한<br>안내서 모음</h1>
     <p class="lede">매주 하나의 키워드를 골라, 왜 그것이 존재하게 됐는지부터 우리 스택 어디에 숨어 있는지까지 한 편으로 끝내는 문서들. 각 편은 독립적이라 아무 순서로 읽어도 됩니다.</p>
     <div class="meta-row">
-      <span class="pill">📚 9편</span>
+      <span class="pill">📚 10편</span>
       <span class="pill">☕ 편당 15~45분</span>
       <span class="pill">🐍 Python·Django 스택으로 연결</span>
     </div>
@@ -213,6 +213,21 @@
   <p class="kicker">최신순</p>
 
   <div class="cards">
+
+    <a class="card" href="jit-guide.html">
+      <div class="top">
+        <span class="no">10</span>
+        <h3>JIT — 인터프리터 언어라면서 왜 컴파일을 하나요</h3>
+        <span class="date">2026-09-14</span>
+      </div>
+      <p class="desc">CPython은 이식성과 단순함을 우선해 기계어 대신 바이트코드까지만 컴파일하고, 그 대가로 명령마다 타입을 다시 확인하는 비용을 떠안았다. 3.11은 기계어 없이 명령을 타입별로 바꿔 끼웠고, 3.13부터는 무거운 컴파일러 대신 미리 구운 기계어 조각을 이어 붙이는 JIT를 들이고 있다. 각 선택이 무엇을 버렸고 어떤 개념을 남겼는지, 그리고 Django 서비스에서 JIT가 줄일 수 있는 시간은 어디까지이고 왜 버전 업그레이드가 먼저인지까지.</p>
+      <p class="quote">💬 파이썬은 인터프리터 언어라면서요? 그런데 왜 컴파일을 해요?</p>
+      <div class="tags">
+        <span class="tag">🧭 우선한 것 · 버린 것 · 생긴 개념</span>
+        <span class="tag">🔬 dis로 직접 확인</span>
+        <span class="tag">⚠️ JIT보다 버전 먼저</span>
+      </div>
+    </a>
 
     <a class="card" href="file-descriptor-guide.html">
       <div class="top">
