@@ -8,6 +8,7 @@
 
 | # | 키워드 | 날짜 |
 |---|---|---|
+| 11 | [Context Switch — CPU는 왜 계속 갈아탈까](context-switch-guide.html) | 2026-09-28 |
 | 10 | [JIT — 인터프리터 언어라면서 왜 컴파일을 하나요](jit-guide.html) | 2026-09-14 |
 | 09 | [파일 디스크립터 — 커널이 세상을 작은 정수 하나로 줄이는 법](file-descriptor-guide.html) | 2026-08-31 |
 | 08 | [PATCH — HTTP 메서드는 왜 다섯 개뿐일까](patch-http-method-guide.html) | 2026-08-24 |

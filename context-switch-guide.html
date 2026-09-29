@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<title>Context Switch — CPU는 왜 계속 갈아탈까 · 주니어 개발자를 위한 안내서</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-soft: #161b22;
+    --bg-card: #1a2029;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --text-faint: #6b7683;
+    --accent: #58a6ff;
+    --accent-2: #7ee787;
+    --cmd: #ff9e64;
+    --qry: #79c0ff;
+    --warn: #f0b429;
+    --danger: #f47067;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+    --maxw: 860px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f6f8fa;
+      --bg-card: #ffffff;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --text-dim: #57606a;
+      --text-faint: #8c959f;
+      --accent: #0969da;
+      --accent-2: #1a7f37;
+      --cmd: #bc4c00;
+      --qry: #0550ae;
+      --warn: #9a6700;
+      --danger: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(1200px 400px at 50% -50%, rgba(88,166,255,0.10), transparent);
+  }
+  .eyebrow {
+    font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 18px;
+    font-weight: 800; letter-spacing: -0.02em;
+  }
+  .lede { font-size: 19px; color: var(--text-dim); max-width: 680px; margin: 0; }
+  .quote-hero {
+    margin: 22px 0 0; padding: 12px 18px; border-left: 3px solid var(--accent);
+    background: var(--bg-soft); border-radius: 0 8px 8px 0; font-size: 16px; color: var(--text-dim);
+  }
+  .quote-hero strong { color: var(--text); }
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .pill {
+    font-size: 13px; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  nav.toc {
+    margin: 34px 0; padding: 22px 24px; background: var(--bg-soft);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  nav.toc h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-faint); margin: 0 0 14px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 34px; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  nav.toc li { margin: 5px 0; break-inside: avoid; }
+  nav.toc a { color: var(--text); text-decoration: none; font-size: 15px; }
+  nav.toc a:hover { color: var(--accent); }
+
+  main { padding: 10px 0 80px; }
+  section { padding: 34px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2.sec {
+    font-size: clamp(24px, 4vw, 32px); font-weight: 800; letter-spacing: -0.02em;
+    margin: 0 0 6px; scroll-margin-top: 20px;
+  }
+  h2.sec .num {
+    display: inline-block; font-family: var(--mono); font-size: 15px; color: var(--accent);
+    background: rgba(88,166,255,0.12); border-radius: 8px; padding: 2px 10px; margin-right: 12px;
+    vertical-align: middle; font-weight: 600;
+  }
+  h3 { font-size: 20px; font-weight: 700; margin: 30px 0 10px; letter-spacing: -0.01em; }
+  h4 { font-size: 16px; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+  p { margin: 12px 0; }
+  strong { color: var(--text); font-weight: 700; }
+  a { color: var(--accent); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 7px 0; }
+
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    padding: 1.5px 6px; border-radius: 6px; color: var(--accent-2);
+  }
+  pre {
+    background: #0b0e13; border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; margin: 16px 0; position: relative;
+    font-size: 14px; line-height: 1.6;
+  }
+  @media (prefers-color-scheme: light) { pre { background: #f6f8fa; } }
+  pre code { background: none; border: none; padding: 0; color: var(--text); font-size: 14px; }
+  .c-kw { color: #ff7b72; } .c-fn { color: #d2a8ff; } .c-str { color: #a5d6ff; }
+  .c-com { color: var(--text-faint); font-style: italic; } .c-num { color: #79c0ff; }
+  .c-ok { color: var(--accent-2); } .c-bad { color: var(--danger); }
+  @media (prefers-color-scheme: light) {
+    .c-kw { color: #cf222e; } .c-fn { color: #8250df; } .c-str { color: #0a3069; } .c-num { color: #0550ae; }
+  }
+  .code-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-faint); margin: 18px 0 -8px;
+  }
+
+  .box {
+    margin: 20px 0; padding: 16px 20px; border-radius: 12px;
+    border: 1px solid var(--border); border-left-width: 4px; background: var(--bg-card);
+  }
+  .box .tag { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+  .box p:first-of-type { margin-top: 4px; }
+  .box p:last-child { margin-bottom: 0; }
+  .box.tip { border-left-color: var(--accent-2); }
+  .box.tip .tag { color: var(--accent-2); }
+  .box.warn { border-left-color: var(--warn); }
+  .box.warn .tag { color: var(--warn); }
+  .box.danger { border-left-color: var(--danger); }
+  .box.danger .tag { color: var(--danger); }
+  .box.note { border-left-color: var(--accent); }
+  .box.note .tag { color: var(--accent); }
+  .box.analogy { border-left-color: #d2a8ff; }
+  .box.analogy .tag { color: #d2a8ff; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0; }
+  @media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+  .split .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--bg-card); }
+  .split .card.cmd { border-top: 3px solid var(--cmd); }
+  .split .card.qry { border-top: 3px solid var(--qry); }
+  .split .card h4 { margin-top: 0; font-size: 18px; }
+  .split .card.cmd h4 { color: var(--cmd); }
+  .split .card.qry h4 { color: var(--qry); }
+  .split .card ul { padding-left: 18px; margin: 8px 0 0; font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: none; }
+
+  .diagram {
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre;
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; overflow-x: auto; color: var(--text-dim); margin: 18px 0;
+  }
+  .kicker { color: var(--text-dim); font-size: 15px; margin: 2px 0 18px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 22px 0; }
+  @media (max-width: 640px) { .stat-row { grid-template-columns: 1fr; } }
+  .stat {
+    border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: var(--bg-card);
+  }
+  .stat .big { font-size: 26px; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+  .ladder { counter-reset: step; margin: 20px 0; padding: 0; list-style: none; }
+  .ladder li {
+    position: relative; padding: 14px 18px 14px 60px; margin: 12px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .ladder li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 16px; top: 14px; width: 30px; height: 30px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 15px;
+  }
+  .ladder li strong { display: block; margin-bottom: 3px; }
+
+  .timeline { margin: 20px 0; padding: 0; list-style: none; }
+  .timeline li {
+    position: relative; padding: 12px 18px 12px 110px; margin: 10px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .timeline li .yr {
+    position: absolute; left: 16px; top: 14px;
+    font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--accent);
+  }
+  .timeline li strong { display: block; margin-bottom: 2px; }
+  .timeline li span.desc { font-size: 15px; color: var(--text-dim); }
+  @media (max-width: 640px) {
+    .timeline li { padding-left: 18px; padding-top: 38px; }
+  }
+
+  footer { padding: 40px 0 60px; color: var(--text-faint); font-size: 14px; }
+  footer h3 { color: var(--text-dim); font-size: 15px; }
+  footer a { color: var(--text-dim); }
+  footer ul { padding-left: 20px; }
+
+  .tldr {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(126,231,135,0.06));
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin: 24px 0;
+  }
+  .tldr .tag { color: var(--accent); font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+  .tldr p { margin: 8px 0 0; font-size: 16px; }
+
+  /* ===== 모바일 대응 (mobile) ===== */
+  html { -webkit-text-size-adjust: 100%; }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px; }
+    header.hero { padding: 48px 0 34px; }
+    h1 { font-size: clamp(25px, 7.2vw, 34px); }
+    .lede { font-size: 17px; }
+    .quote-hero { font-size: 15px; padding: 11px 15px; }
+    .pill { font-size: 12px; padding: 5px 11px; }
+    main { padding: 6px 0 56px; }
+    section { padding: 26px 0; }
+    h2.sec { font-size: clamp(21px, 5.6vw, 26px); }
+    h2.sec .num { font-size: 13px; padding: 2px 8px; margin-right: 9px; }
+    h3 { font-size: 18px; }
+
+    /* 긴 식별자(innodb_flush_log_at_trx_commit 등)가 표·문단을 밀어내지 않도록 */
+    /* 긴 토큰은 code 안에만 있으므로 줄바꿈 허용은 code로 한정한다.
+       셀 전체에 걸면 'PostgreSQL'이 글자 단위로 쪼개진다. */
+    code { overflow-wrap: anywhere; }
+    th, td { padding: 9px 10px; font-size: 14px; }
+    th { font-size: 12px; }
+    td code, th code { font-size: 0.82em; }
+
+    pre { padding: 14px 15px; }
+    pre, pre code { font-size: 13px; }
+    .diagram { font-size: 11px; padding: 15px; line-height: 1.45; }
+    .box { padding: 14px 16px; }
+    .tldr { padding: 17px 18px; }
+    .tldr p { font-size: 15px; }
+    .stat .big { font-size: 23px; }
+    .ladder li { padding: 13px 15px 13px 52px; }
+    .ladder li::before { left: 13px; top: 13px; width: 27px; height: 27px; font-size: 14px; }
+    nav.toc { padding: 18px 18px; margin: 26px 0; }
+    footer { padding: 30px 0 48px; }
+
+    /* index.html 카드 */
+    a.card { padding: 17px 18px; }
+    a.card h3 { font-size: 19px; }
+    a.card .date { margin-left: 0; width: 100%; order: 3; }
+    a.card .desc, a.card .quote { font-size: 14px; }
+  }
+
+  /* ===== 목록 back-link ===== */
+  .backlink {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    color: var(--text-dim); margin-bottom: 20px;
+    padding: 5px 12px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft);
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .backlink:hover { color: var(--accent); border-color: var(--accent); }
+  footer .backlink { margin: 26px 0 0; }
+</style>
+</head>
+<body>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="wrap">
+    <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+    <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
+    <h1>Context Switch<br>CPU는 왜 계속 갈아탈까</h1>
+    <p class="lede">Django 뷰 어디에도 <code>threading</code>은 없고, gunicorn 워커는 기본값으로 스레드 하나로 돕니다. 그런데 요청을 처리하는 워커 프로세스를 들여다보면 쿼리 한 번, 몇 ms 한 조각마다 CPU에서 내려왔다 다시 올라갑니다. 누가, 왜 내리는 걸까요?</p>
+    <p class="quote-hero">💬 <strong>"스레드를 직접 만들지 않아도 context switch는 발생합니다. CPU는 왜 계속 다른 실행 주체로 갈아치울까?"</strong></p>
+    <div class="meta-row">
+      <span class="pill">☕ 읽는 데 ~30분</span>
+      <span class="pill">🧭 우선한 것 · 버린 것 · 생긴 개념</span>
+      <span class="pill">🔬 /proc 로 직접 세어 봄</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TOC ============ -->
+<div class="wrap">
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#intro">스레드 하나여도 갈아탄다</a></li>
+      <li><a href="#concept">컨텍스트와 전환 — 무엇을 바꿔 끼우나</a></li>
+      <li><a href="#choice1">선택 ① 기다리는 동안 남에게 넘긴다</a></li>
+      <li><a href="#choice2">선택 ② 시간이 되면 빼앗는다</a></li>
+      <li><a href="#neighbors">혼자인 프로세스는 없다</a></li>
+      <li><a href="#choice3">선택 ③ 한 스레드 안에서 교대한다</a></li>
+      <li><a href="#practice">실무 — 세는 법과 읽는 법</a></li>
+      <li><a href="#cheatsheet">한 장 요약 치트시트</a></li>
+    </ol>
+  </nav>
+</div>
+
+<main class="wrap">
+
+  <section id="intro">
+    <h2 class="sec"><span class="num">00</span>스레드 하나여도 갈아탄다</h2>
+    <p class="kicker">"스레드를 안 만들었으니 전환도 없다"는 전제부터 짚기</p>
+
+    <p>질문 속 전제부터 봅시다. "스레드를 직접 만들지 않았다"는 말은 사실 <strong>내 프로세스 안에 스레드가 하나뿐</strong>이라는 뜻입니다. 여기서 <strong>스레드</strong>는 코드를 한 줄씩 따라가며 실행하는 흐름 하나이고, <strong>프로세스</strong>는 그런 흐름이 1개 이상 들어 있는, 메모리 공간을 따로 가진 실행 중인 프로그램입니다. 파이썬 인터프리터를 그냥 띄우면 스레드가 1개인 프로세스가 됩니다.</p>
+
+    <p>그런데 컨텍스트 스위치는 "내 프로세스 안의 스레드끼리" 일어나는 일이 아닙니다. <strong>CPU 코어 하나를 두고, 그 기계 위의 모든 스레드가</strong> 번갈아 쓰는 일입니다. 누구에게 언제 코어를 줄지는 <strong>커널</strong>(모든 프로그램에 CPU와 메모리를 나눠 주는 운영체제의 핵심부)이 정합니다. 내 쪽에 스레드가 하나뿐이어도 코어는 내 것이 아니고, 내 스레드가 코어에서 내려가는 것만으로도 전환은 일어납니다.</p>
+
+    <p>짧은 답은 이렇습니다. 내 스레드가 코어에서 내려가는 이유는 둘이고, 그 자리를 채울 이웃은 늘 있습니다.</p>
+    <ol class="ladder">
+      <li><strong>기다려야 해서</strong>DB 응답, 파일 읽기, <code>sleep</code>. 지금 스레드가 더 할 일이 없으니 스스로 내려간다. 이것을 <b>자발적 전환</b>이라고 한다.</li>
+      <li><strong>빼앗겨서</strong>할 일이 남아 있어도 정해진 몫을 다 썼거나, 먼저 돌아야 할 다른 스레드가 깨어나면 커널이 끌어내린다. 이것은 <b>비자발적 전환</b>이다.</li>
+      <li><strong>원래 혼자가 아니라서</strong>같은 기계에는 다른 워커, 커널이 쓰는 스레드, 로그 수집기, 라이브러리가 몰래 띄운 스레드가 있다. 1번과 2번이 일어날 때마다 이들 중 누군가가 코어를 넘겨받는다.</li>
+    </ol>
+    <p>1번과 2번은 운영체제가 내린 두 선택에서 하나씩 생겼고, 3번은 그 선택들이 돌아가는 무대입니다. 그리고 두 선택이 남긴 비용을 줄이려는 세 번째 선택이 오늘의 <code>async</code>입니다. 각 선택이 무엇을 얻으려 했고 무엇을 떠안았는지 따라가면 "왜 계속 갈아타는가"가 자연스럽게 보입니다.</p>
+
+    <div class="box note">
+      <span class="tag">이 문서가 답하는 것</span>
+      <p>1. 전환할 때 정확히 무엇을 저장하고 복원하나 · 2. 스레드가 하나인데도 전환이 일어나는 이유 · 3. <code>async</code>는 전환과 어떤 관계인가 · 4. 내 워커가 겪는 전환을 세고, 숫자를 해석하는 법. 다 읽고 나면 "전환이 많다"는 말을 들었을 때 <strong>어느 쪽 전환이 왜 많은지</strong>부터 물을 수 있게 됩니다.</p>
+    </div>
+  </section>
+
+  <section id="concept">
+    <h2 class="sec"><span class="num">01</span>컨텍스트와 전환 — 무엇을 바꿔 끼우나</h2>
+
+    <p>CPU 코어는 한순간에 명령 하나의 흐름만 실행합니다. 그 흐름이 "지금 어디까지 왔고 무엇을 들고 있는지"는 코어 안의 작은 저장칸인 <strong>레지스터</strong>에 들어 있습니다. 다음에 실행할 명령의 위치(프로그램 카운터), 계산 중인 값, 그리고 스택의 현재 위치(스택 포인터)가 레지스터에 있습니다. <strong>스택</strong>은 함수를 호출할 때마다 지역 변수와 돌아갈 위치를 쌓아 두는 메모리 영역입니다.</p>
+
+    <p>이 "실행 상태 한 벌"을 <strong>컨텍스트(context)</strong>라고 합니다. 다른 스레드를 실행하려면 지금 스레드의 컨텍스트를 메모리에 적어 두고, 다음 스레드가 예전에 적어 둔 컨텍스트를 레지스터에 다시 채워 넣어야 합니다. 이 저장과 복원이 <strong>컨텍스트 스위치</strong>입니다. 다음에 누구를 올릴지는 커널 안의 <strong>스케줄러</strong>가 고릅니다. 스케줄러는 실행할 준비가 된 스레드들 가운데 다음 차례를 정하는 커널의 한 부분입니다.</p>
+
+<div class="diagram">스레드 A 실행 중
+   │  (전환 계기가 생김: I/O 대기 / 몫 소진 / 급한 스레드가 깨어남)
+   ▼
+┌──────────── 커널 ────────────┐
+│ ① A의 레지스터 → A의 저장칸     │
+│ ② 스케줄러: 다음은 누구? → B     │
+│ ③ B가 다른 프로세스면            │
+│    페이지 테이블도 교체           │
+│ ④ B의 저장칸 → 레지스터         │
+└──────────────────────────────┘
+   ▼
+스레드 B 실행 (B가 멈췄던 바로 그 명령부터)</div>
+
+    <p>③은 A와 B가 다른 프로세스일 때만 필요합니다. 프로세스마다 "내 코드가 쓰는 주소를 실제 메모리의 어디로 옮길지" 적어 둔 표가 따로 있고, 이것을 <strong>페이지 테이블</strong>이라고 합니다. 프로세스가 바뀌면 이 표도 바꿔 끼워야 합니다. 같은 프로세스의 스레드끼리는 표를 공유하므로 레지스터만 바꾸면 됩니다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 커널 모드와 유저 모드, 시스템 콜</span>
+      <p>CPU는 두 가지 권한 수준으로 돌아갑니다. 커널 코드는 무엇이든 할 수 있는 <strong>커널 모드</strong>에서, 우리 코드는 제한된 <strong>유저 모드</strong>에서 실행됩니다. 우리 코드가 파일 읽기나 소켓 쓰기처럼 권한이 필요한 일을 부탁하는 창구가 <strong>시스템 콜(syscall)</strong>입니다. 스레드 사이의 전환은 커널만 할 수 있으므로, 스레드가 코어에서 내려가는 일은 늘 커널 모드에서 일어납니다.</p>
+    </div>
+
+    <h3>비용은 "짐 싸기"보다 "식은 캐시"에서 나온다</h3>
+    <p>저장과 복원 자체는 빠릅니다. 한 개발자가 전환만 반복하는 마이크로벤치마크로 잰 결과, 두 프로세스를 같은 코어에서만 돌도록 고정하면 한 번에 1~2µs(마이크로초, 100만분의 1초), 고정하지 않으면 3~4µs 정도였습니다. 진짜 비용은 그 뒤에 옵니다. 코어에는 최근 쓴 데이터를 담아 두는 캐시가 있는데, B가 올라오면 A가 데워 놓은 캐시는 B에게 쓸모가 없습니다. 페이지 테이블을 바꿨다면 주소 변환 결과를 담아 두는 캐시(TLB)도 마찬가지입니다. B는 필요한 데이터를 메모리에서 다시 불러오며 한동안 느리게 돕니다. 같은 글의 저자는 이런 캐시 손실까지 치면 전환 한 번에 약 30µs가 든다는 경험칙을 제시했습니다.</p>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해: 시스템 콜 = 컨텍스트 스위치</span>
+      <p>시스템 콜을 부르면 CPU는 유저 모드에서 커널 모드로 넘어갑니다. 하지만 이것은 <strong>같은 스레드가 권한만 바꿔 입는 것</strong>이고, 이를 <strong>모드 전환(mode switch)</strong>이라고 부릅니다. 다른 스레드로 바뀌지 않으므로 컨텍스트 스위치가 아닙니다. 시스템 콜이 <b>기다림을 부를 때</b>(예: 아직 도착하지 않은 소켓 데이터를 <code>recv</code>)에만 그 안에서 전환이 일어납니다.</p>
+      <p>아래 실측 F에서 <code>os.getppid()</code>를 100만 번 불렀는데 자발적 전환은 0번이었습니다. 위 벤치마크에서도 시스템 콜 한 번은 50~105ns(나노초, 10억분의 1초)로, 전환보다 수십 배 쌌습니다.</p>
+    </div>
+  </section>
+
+  <section id="choice1">
+    <h2 class="sec"><span class="num">02</span>선택 ① 기다리는 동안 남에게 넘긴다</h2>
+    <p class="kicker">멀티프로그래밍 — 자발적 전환이 생긴 이유</p>
+
+    <p>초기 컴퓨터는 프로그램 하나를 올려 끝날 때까지 돌렸습니다. 문제는 프로그램이 테이프나 디스크를 기다리는 동안 CPU가 그냥 놀았다는 점입니다. 입출력 장치는 CPU보다 몇 자릿수 느리고, 비싼 기계가 대부분의 시간을 기다리며 보냈습니다.</p>
+    <p>1960년대 초의 해법이 <strong>멀티프로그래밍</strong>입니다. 여러 프로그램을 메모리에 함께 올려 두고, 하나가 입출력을 기다리면 그 상태를 저장해 둔 채 다른 프로그램을 돌립니다. 입출력이 끝나면 기다리던 프로그램은 다시 "실행 가능" 목록에 들어갑니다. 여기서 "실행 상태를 저장했다가 나중에 이어서 돌린다", 곧 컨텍스트 스위치라는 동작이 필요해졌습니다.</p>
+
+    <div class="split">
+      <div class="card cmd">
+        <h4>✅ 우선한 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>CPU를 놀리지 않기</strong></p>
+        <ul><li>누군가 기다리는 동안 다른 누군가가 계산한다</li><li>기계 한 대가 처리하는 총량이 늘어난다</li></ul>
+      </div>
+      <div class="card qry">
+        <h4>🗑️ 버린 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>"한 프로그램이 처음부터 끝까지 코어를 쥔다"는 단순함</strong></p>
+        <ul><li>기다릴 때마다 저장·복원과 식은 캐시 비용이 생긴다</li><li>전환은 <b>기다림이 생길 때만</b> 일어난다. 기다리지 않고 계산만 하는 프로그램이 코어를 놓지 않으면 막을 방법이 없다</li></ul>
+      </div>
+    </div>
+    <p><strong>이 선택에서 생긴 개념:</strong> 컨텍스트, "실행 중 / 실행 가능 / 대기(블록)"라는 상태 구분, 그리고 스스로 코어를 내놓는 <strong>자발적 전환(voluntary context switch)</strong>.</p>
+
+    <h3>이게 오늘 Django 워커에서 제일 많이 일어난다</h3>
+    <p>요청 하나를 처리하는 gunicorn sync 워커를 떠올려 봅시다. 스레드는 하나입니다. 뷰가 ORM 쿼리를 날리면 DB 드라이버는 소켓으로 SQL을 보내고 응답을 읽으려 합니다. 응답이 아직 안 왔으면 커널은 이 스레드를 "대기" 상태로 돌리고 코어를 다른 스레드에게 줍니다. 응답 패킷이 도착하면 워커는 다시 "실행 가능"이 되고, 차례가 오면 올라옵니다. 요청을 다 처리하고 다음 연결을 받으려 <code>accept()</code>(새 연결을 받아들이는 시스템 콜)에서 기다릴 때도 마찬가지입니다.</p>
+
+<div class="diagram">워커(스레드 1개)          커널                       PostgreSQL
+─────────────────       ──────────────────         ──────────────
+view() 실행 ─────────▶
+cursor.execute() ──send──────────────────────────▶ 쿼리 실행 중…
+recv() ── 아직 데이터 없음 ─▶ 워커를 '대기'로
+                          코어는 다른 스레드에게   ← 자발적 전환 ①
+                              ⋮
+                          패킷 도착! 워커를 '실행 가능'으로
+                          차례가 오면 복원 ───────▶ recv() 반환
+응답 조립 → send() ──────▶ …
+다음 요청 accept() ─ 대기 ─▶ 또 내려감              ← 자발적 전환 ②</div>
+
+    <p>요청 한 건에 쿼리가 10번 나가면, 응답이 이미 와 있지 않은 한 그때마다 한 번씩 내려갑니다.</p>
+
+    <p class="code-label">실측 — Linux 컨테이너, 코어 1개에 묶고 /proc/self/status 로 전후 차이를 셈 (발췌)</p>
+<pre><code><span class="c-com"># 프로세스 안 스레드 수: 1</span>
+C. time.sleep(0.001) x 1000               vol=  <span class="c-num">1000</span>  nonvol=    0
+D. 다른 프로세스와 소켓 핑퐁 x 1000        vol=   <span class="c-num">840</span> ~ 1485   nonvol=  13 ~ 470   <span class="c-com"># 3회 반복</span>
+F. os.getppid() x 1,000,000 (시스템 콜)    vol=     <span class="c-num">0</span>  nonvol=    1</code></pre>
+    <p><code>sleep</code> 1,000번에 자발적 전환이 정확히 1,000번 생겼습니다. 소켓 핑퐁도 기다릴 때마다 내려갔지만, 횟수는 측정마다 크게 흔들렸습니다. 상대가 답을 먼저 보내 두었으면 기다리지 않고 지나가는 등 두 프로세스의 타이밍에 따라 달라지기 때문입니다. 반면 기다림이 없는 시스템 콜 100만 번은 자발적 전환을 하나도 만들지 않았습니다. 자발적 전환의 계기는 "커널에 들어갔다"가 아니라 <strong>"기다려야 한다"</strong>입니다.</p>
+
+    <div class="box analogy">
+      <span class="tag">🍳 비유</span>
+      <p>화구가 하나인 주방에서 요리사가 반죽을 오븐(DB)에 넣고 구워지기를 기다립니다. 오븐은 화구 없이도 알아서 굽고 있으니, 요리사는 화구 앞을 비켜 줍니다. 그 사이 다른 요리사가 화구에 팬을 올려 볶기 시작합니다. 먼저 요리사가 할 일이 없어 스스로 물러난 것이 자발적 전환입니다.</p>
+    </div>
+  </section>
+
+  <section id="choice2">
+    <h2 class="sec"><span class="num">03</span>선택 ② 시간이 되면 빼앗는다</h2>
+    <p class="kicker">타이머 인터럽트와 선점 — 비자발적 전환이 생긴 이유</p>
+
+    <p>선택 ①은 기다리지 않는 프로그램 앞에서 무력했습니다. 계산만 하는 프로그램이 코어를 쥐고 있으면, 터미널 앞에서 명령을 친 다른 사용자는 그 계산이 끝날 때까지 아무 반응도 받지 못합니다. 여러 사람이 한 기계를 동시에 대화하듯 쓰려면 <strong>프로그램이 원하지 않아도 코어를 빼앗을 수단</strong>이 필요했습니다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 인터럽트</span>
+      <p><strong>인터럽트</strong>는 하드웨어가 CPU에게 "지금 하던 것을 잠깐 멈추고 이것부터 처리하라"고 보내는 신호입니다. 신호가 오면 CPU는 실행 중이던 코드를 멈추고 커널의 처리 코드(인터럽트 핸들러)로 뛰어갑니다. 그중 <strong>타이머 인터럽트</strong>는 일정 주기마다 스스로 울리는 시계에서 옵니다.</p>
+    </div>
+
+    <p>MIT의 CTSS가 1961년 이 방식을 보였습니다. IBM 709를 고쳐 타이머 인터럽트를 달고, 시계가 울릴 때마다 커널이 제어권을 되찾아 "이 프로그램의 몫이 끝났나?"를 판단했습니다. 몫이 끝났으면 프로그램이 한창 계산 중이어도 멈추고 다음 차례에게 넘겼습니다. 이렇게 강제로 차례를 빼앗는 것을 <strong>선점(preemption)</strong>, 한 번에 주는 몫을 <strong>타임 슬라이스</strong>라고 합니다. 개인용 컴퓨터는 한동안 이 선택을 하지 않았고, 그래서 Windows 3.1이나 클래식 Mac OS에서는 양보하지 않는 프로그램 하나가 화면 전체를 얼리곤 했습니다. 프로그램이 스스로 양보할 때만 넘어가는 이런 방식을 <strong>협력형 멀티태스킹</strong>이라고 합니다.</p>
+
+    <div class="split">
+      <div class="card cmd">
+        <h4>✅ 우선한 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>응답성과 공정함</strong></p>
+        <ul><li>어떤 프로그램도 코어를 독점할 수 없다</li><li>무한 루프가 돌아도 시스템 전체는 멈추지 않는다</li></ul>
+      </div>
+      <div class="card qry">
+        <h4>🗑️ 버린 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>"내가 원할 때만 멈춘다"는 보장</strong></p>
+        <ul><li>할 일이 남은 스레드도 내려간다. 아무도 원하지 않은 전환과 식은 캐시가 생긴다</li><li>코드의 <b>아무 명령 사이에서나</b> 끊길 수 있다. 여러 스레드가 같은 값을 만지면 끊긴 틈에 서로 끼어들어 값이 꼬인다. 이를 <strong>경쟁 상태(race condition)</strong>라 하고, 막으려면 잠금이 필요해진다</li></ul>
+      </div>
+    </div>
+    <p><strong>이 선택에서 생긴 개념:</strong> 타이머 인터럽트, 타임 슬라이스, 선점, 그리고 커널이 끌어내리는 <strong>비자발적 전환(nonvoluntary / involuntary context switch)</strong>.</p>
+
+    <h3>빼앗는 계기는 둘이다</h3>
+    <p>오늘의 리눅스(6.6 버전부터 EEVDF라는 스케줄러를 씁니다)는 두 가지 경우에 실행 중인 스레드를 끌어내립니다.</p>
+    <ol class="ladder">
+      <li><strong>몫을 다 썼을 때</strong>경쟁자가 있으면 한 번에 주는 기본 몫을 다 쓴 스레드를 내린다. 코어가 여러 개인 서버라면 <b>몇 ms씩</b> 번갈아 쓴다고 보면 된다. 경쟁자가 없으면 빼앗을 이유가 없으니 계속 돈다.</li>
+      <li><strong>먼저 돌아야 할 스레드가 깨어났을 때</strong>EEVDF는 스레드마다 공정하게 받아야 할 CPU 시간과 실제로 쓴 시간을 비교하고, 덜 쓴 스레드 가운데 <b>마감</b>(이번 몫을 언제까지 받아야 공정한지)이 가장 이른 쪽을 돌린다. 잠든 동안 CPU 시간이 쌓이지는 않는다. 다만 깨어난 스레드는 평균 근처 자리와 새 마감을 받으므로, 지금 도는 스레드가 이미 평균보다 많이 썼다면 깨어난 쪽이 먼저 차례를 받아 밀어낼 수 있다. 이 판단은 다음 장의 인터럽트와 이어진다.</li>
+    </ol>
+
+    <p class="code-label">실측 — 같은 컨테이너, 1초 동안 빈 루프를 돌림 (발췌)</p>
+<pre><code>A. 코어에 혼자                         vol=0  nonvol=  <span class="c-num">34</span>   루프 19,010,318회
+B. 같은 코어에 무한 루프 프로세스 1개   vol=0  nonvol= <span class="c-num">172</span>   루프  9,559,292회</code></pre>
+    <p>B에서 루프 횟수가 거의 절반이 됐습니다. 1초를 둘이 나눠 썼고, 172번 끌어내려졌습니다. 기본 몫(<code>base_slice</code>)은 0.75ms(리눅스 6.15부터 0.7ms)에 CPU 수에 따른 배수(최대 4배)를 곱해 정합니다. 이 기계(리눅스 6.12, CPU 14개)라면 0.75ms × 4 = 3ms이고, 0.5초 ÷ 3ms ≈ 167번에 A처럼 이웃이 끼어든 몫이 더해져 172번 근처가 됩니다. 커널은 몫이 끝났는지를 <b>틱</b>(타이머 인터럽트가 한 번 울리는 것, 이 기계는 1ms마다)마다 확인하므로 실제 간격은 계산보다 조금 길어질 수 있습니다. 두 경우 모두 자발적 전환은 0입니다. 기다릴 일이 없는 계산이라 스스로 내려간 적이 없고, 전부 빼앗긴 것입니다.</p>
+    <p>그런데 A를 보면, <strong>혼자 돌렸는데도 34번 끌어내려졌습니다.</strong></p>
+  </section>
+
+  <section id="neighbors">
+    <h2 class="sec"><span class="num">04</span>혼자인 프로세스는 없다</h2>
+    <p class="kicker">"다른 실행 주체"는 누구인가</p>
+
+    <p>선택 ①과 ②는 "내 스레드가 언제 내려가는가"를 설명합니다. 그런데 내려간 자리에 누군가 올라와야 전환이 완성됩니다. 스레드를 하나만 쓰는 워커 옆에도 그 "누군가"는 늘 있습니다.</p>
+    <table>
+      <thead><tr><th>이웃</th><th>무엇이고 왜 깨어나나</th></tr></thead>
+      <tbody>
+        <tr><td>같은 서비스의 다른 워커</td><td>gunicorn은 워커 프로세스를 여러 개 띄운다. 코어보다 워커가 많으면 계산이 겹칠 때마다 서로 빼앗는다</td></tr>
+        <tr><td>커널 스레드</td><td>커널도 스레드로 일한다. 메모리에서 바뀌었지만 아직 디스크에 쓰지 않은 데이터를 내려 쓰는 일, 네트워크 수신의 뒷정리, 코어 사이의 부하 옮기기 같은 일로 수시로 깨어난다</td></tr>
+        <tr><td>같은 기계의 다른 프로그램</td><td>로그 수집 에이전트, 모니터링 에이전트, 사이드카 컨테이너(앱 옆에 붙어 프록시·로그 전송을 맡는 보조 컨테이너), 같은 호스트의 다른 컨테이너</td></tr>
+        <tr><td>라이브러리가 띄운 스레드</td><td>직접 만들지 않았어도 에러 수집 SDK나 APM(요청별 응답 시간을 추적하는 성능 모니터링) SDK는 데이터를 모아 보내는 백그라운드 스레드를 띄우는 경우가 많다. 이러면 내 프로세스도 이미 멀티스레드다</td></tr>
+      </tbody>
+    </table>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 컨테이너 옵션은 코어를 독점시켜 주지 않는다</span>
+      <p><code>--cpuset-cpus</code>는 "이 코어들에서만 돌아라"라고 <b>자리를 지정</b>할 뿐, 그 코어를 비워 주지 않습니다. 커널 스레드와 다른 컨테이너는 같은 코어를 계속 씁니다. 실측 A가 그 경우입니다. <code>--cpus</code>(쿠버네티스의 CPU limit)는 <b>시간 총량</b>입니다. 정해진 주기 안에 몫을 다 쓰면 다음 주기까지 강제로 멈추는데(스로틀), 이것도 비자발적 전환으로 잡힙니다.</p>
+    </div>
+
+    <h3>인터럽트 자체는 전환이 아니다, 하지만 전환을 부른다</h3>
+    <p>네트워크 카드에 패킷이 도착하면 인터럽트가 옵니다. CPU는 지금 스레드를 잠깐 멈추고 핸들러를 실행한 뒤 <strong>같은 스레드로 돌아옵니다</strong>. 스레드가 바뀌지 않았으니 이것만으로는 컨텍스트 스위치가 아닙니다. 다만 핸들러가 그 패킷을 기다리던 스레드(02장에서 <code>recv</code>로 잠든 워커)를 깨우면, 커널은 03장의 두 번째 계기에 따라 "깨어난 쪽을 먼저 돌릴까?"를 판단합니다. 그렇다고 판단하면 여기서 전환이 일어납니다. 지금 돌던 스레드는 <b>남의 I/O가 끝났다는 이유로</b> 비자발적 전환을 당하는 셈입니다.</p>
+  </section>
+
+  <section id="choice3">
+    <h2 class="sec"><span class="num">05</span>선택 ③ 한 스레드 안에서 교대한다</h2>
+    <p class="kicker">코루틴과 이벤트 루프 — ①과 ②의 대가를 줄이려는 선택</p>
+
+    <p>①과 ②가 만든 스레드 모델에는 대가가 둘 남았습니다. 기다릴 때마다 커널 전환과 식은 캐시가 생기고(①의 대가), 아무 명령 사이에서나 끊길 수 있어 경쟁 상태를 잠금으로 막아야 합니다(②의 대가). 동시에 기다리는 연결이 수만 개인 웹 서버에서 "연결 하나에 스레드 하나"를 두면 이 대가가 수만 배가 됩니다.</p>
+    <p>해법은 <strong>한 스레드 안에서 여러 작업을 번갈아 돌리되, 그 교대를 커널이 아니라 프로그램이 직접 하는 것</strong>입니다. 파이썬의 <code>asyncio</code>가 그 예입니다. 작업 하나하나는 <strong>코루틴</strong>(중간에 멈췄다 이어서 실행할 수 있는 함수)이고, <code>await</code>를 만나 기다려야 하면 스스로 멈춰 <strong>이벤트 루프</strong>에게 제어를 돌려줍니다. 이벤트 루프는 준비된 다른 코루틴을 이어서 돌립니다.</p>
+    <p>코루틴이 멈춘 위치와 지역 변수는 코루틴 자신의 프레임 객체에 그대로 남아 있고, 이벤트 루프는 그 객체를 다시 이어서 실행할 뿐입니다. CPU 레지스터 한 벌을 저장하고 복원하는 일이 없습니다. 교대는 유저 모드 안에서 함수 호출처럼 일어나고, 스레드가 바뀌지 않으므로 컨텍스트 스위치가 아닙니다. 또 교대는 <code>await</code>에서만 일어나므로, 두 <code>await</code> 사이의 코드는 다른 코루틴에게 끊기지 않습니다.</p>
+
+    <p class="code-label">실측 — 같은 컨테이너 (발췌)</p>
+<pre><code>D. 프로세스 간 소켓 핑퐁 x 1000       vol= <span class="c-num">840</span> ~ 1485   <span class="c-com"># 기다릴 때마다 커널이 전환</span>
+E. asyncio 큐 핑퐁 x 1000 (코루틴)    vol=    <span class="c-num">0</span>          <span class="c-com"># 코루틴 교대 약 2,000번</span></code></pre>
+
+    <div class="split">
+      <div class="card cmd">
+        <h4>✅ 우선한 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>싼 교대, 많은 동시 대기</strong></p>
+        <ul><li>코루틴끼리의 교대에는 컨텍스트 스위치가 없다</li><li>스레드 하나로 수많은 연결을 동시에 기다린다</li></ul>
+      </div>
+      <div class="card qry">
+        <h4>🗑️ 버린 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>코루틴 사이의 선점</strong></p>
+        <ul><li>03장의 협력형으로 돌아간 것이다</li><li>코루틴 하나가 무거운 계산이나 기다리는 동안 스레드를 붙잡는 호출(<code>time.sleep</code>, 동기 DB 드라이버)을 하면 루프 전체가 멈춘다</li></ul>
+      </div>
+    </div>
+    <p><strong>이 선택에서 생긴 개념:</strong> 코루틴, 이벤트 루프, 그리고 "<code>await</code> 지점이 곧 양보 지점"이라는 규칙.</p>
+
+    <div class="box warn">
+      <span class="tag">⚠️ async도 커널의 전환에서 벗어나지 못한다</span>
+      <p>이벤트 루프는 한 바퀴 돌 때마다 "준비된 소켓이 있나?"를 커널에 묻습니다(리눅스에서는 <code>epoll</code>). 실측 E에서도 코루틴 교대 약 2,000번에 이 시스템 콜이 약 2,000번 불렸습니다. 이것은 모드 전환이지 컨텍스트 스위치가 아닙니다. 하지만 모든 코루틴이 기다리는 중이면 루프 스레드는 이 호출 안에서 잠들고, 그때는 자발적 전환으로 내려갑니다. 03장과 04장의 선점과 이웃도 그대로입니다. async가 없앤 것은 <b>코루틴끼리의 교대에 드는 컨텍스트 스위치</b>뿐이고, 기계 전체의 전환은 여전히 커널이 합니다.</p>
+    </div>
+  </section>
+
+  <section id="practice">
+    <h2 class="sec"><span class="num">06</span>실무 — 세는 법과 읽는 법</h2>
+
+    <h3>세는 법 (리눅스 서버·컨테이너 안에서)</h3>
+<pre><code><span class="c-com"># 프로세스의 누적 전환 수 — 메인 스레드만 센다</span>
+grep ctxt /proc/<span class="c-num">&lt;PID&gt;</span>/status
+<span class="c-com">#   voluntary_ctxt_switches / nonvoluntary_ctxt_switches</span>
+
+<span class="c-com"># 스레드별 누적 전환 수 (SDK가 띄운 스레드 포함)</span>
+grep ctxt /proc/<span class="c-num">&lt;PID&gt;</span>/task/*/status
+
+<span class="c-com"># 초당 전환 수 (sysstat 패키지). -t 를 붙이면 스레드별</span>
+pidstat -w -t -p <span class="c-num">&lt;PID&gt;</span> <span class="c-num">1</span>     <span class="c-com"># cswch/s = 자발적, nvcswch/s = 비자발적</span>
+
+<span class="c-com"># 기계 전체의 초당 전환 수</span>
+vmstat <span class="c-num">1</span>                        <span class="c-com"># cs 열</span></code></pre>
+    <p>macOS에는 <code>/proc</code>가 없으니 위 명령은 리눅스 서버나 컨테이너 안에서 씁니다. 누적 값은 의미가 적고, 부하를 준 전후의 <strong>차이</strong>나 초당 값을 봅니다. <code>/proc/&lt;PID&gt;/status</code>의 <code>Threads</code> 줄로 실제 스레드 수도 함께 확인합니다. SDK가 띄운 스레드가 여기서 보입니다.</p>
+
+    <h3>읽는 법 — 두 숫자는 서로 다른 이야기를 한다</h3>
+    <table>
+      <thead><tr><th>관찰</th><th>뜻과 먼저 볼 곳</th></tr></thead>
+      <tbody>
+        <tr><td>자발적이 많다</td><td>그만큼 자주 기다린다. 웹 워커라면 대개 정상이다. 요청당 쿼리·외부 호출 수와 DB·외부 API의 응답 시간을 본다. 목록 1번에 항목마다 1번씩 쿼리가 더 나가는 N+1 쿼리가 흔한 원인이다</td></tr>
+        <tr><td>비자발적이 많다</td><td>할 일이 있는데 코어를 뺏기고 있다. 코어 대비 워커·스레드 수, 같은 호스트의 다른 부하, 컨테이너 CPU limit 스로틀을 본다</td></tr>
+        <tr><td>기계 전체 <code>cs</code>만 높다</td><td>누가 만드는지부터 찾는다. <code>pidstat -wt</code>로 스레드별 상위를 확인한다</td></tr>
+      </tbody>
+    </table>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 전환 수는 목표가 아니라 증상이다</span>
+      <p>자발적 전환이 많은 워커는 "전환이 비싸서" 느린 게 아니라 <strong>기다리느라</strong> 느립니다. 쿼리 한 번에 걸리는 수 ms에 비하면 캐시 손실까지 친 전환 비용(수십 µs)도 작습니다. 전환 수를 줄이려 애쓰기 전에, 그 전환을 만든 기다림이 필요한 것인지를 먼저 봅니다. 반대로 비자발적 전환이 많으면, 계산할 일이 있는 스레드들이 코어를 나눠 쓰며 서로의 캐시를 식히고 있다는 뜻입니다. 이때는 워커 수를 코어 수 근처로 맞추는 것이 먼저입니다.</p>
+    </div>
+  </section>
+
+  <section id="cheatsheet">
+    <h2 class="sec"><span class="num">07</span>한 장 요약 치트시트</h2>
+
+    <div class="tldr">
+      <span class="tag">CPU는 왜 계속 갈아탈까</span>
+      <p><strong>코어는 내 프로세스의 것이 아니라 기계 위 모든 스레드의 공용이기 때문이다.</strong> 스레드는 기다릴 일이 생기면 스스로 내려가고(CPU를 놀리지 않으려는 선택), 몫을 다 쓰거나 먼저 돌 스레드가 깨어나면 끌려 내려가며(독점을 막으려는 선택), 그 빈자리는 다른 워커·커널 스레드·SDK 스레드가 채운다. 그래서 스레드를 하나도 만들지 않은 Django 워커도 쿼리마다, 몫이 끝날 때마다 전환을 겪는다.</p>
+    </div>
+
+    <table>
+      <thead><tr><th>선택</th><th>우선한 것 / 버린 것</th><th>생긴 개념</th></tr></thead>
+      <tbody>
+        <tr><td>① 기다리는 동안 넘긴다</td><td>CPU 이용률 / 한 프로그램이 코어를 끝까지 쥐는 단순함. 코어를 놓지 않는 프로그램에는 속수무책</td><td>컨텍스트, 대기 상태, 자발적 전환</td></tr>
+        <tr><td>② 시간이 되면 빼앗는다</td><td>응답성·공정함 / "원할 때만 멈춘다"는 보장</td><td>타이머 인터럽트, 선점, 비자발적 전환, 경쟁 상태</td></tr>
+        <tr><td>③ 한 스레드 안에서 교대한다</td><td>싼 교대·많은 동시 대기 / 코루틴 사이의 선점</td><td>코루틴, 이벤트 루프, <code>await</code> = 양보 지점</td></tr>
+      </tbody>
+    </table>
+
+    <table>
+      <thead><tr><th>기억할 것</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>컨텍스트</td><td>레지스터에 든 실행 상태 한 벌. 다른 프로세스로 넘어가면 페이지 테이블도 교체</td></tr>
+        <tr><td>모드 전환 ≠ 컨텍스트 전환</td><td>시스템 콜은 같은 스레드가 권한만 바꾸는 것. 기다림이 생길 때만 전환으로 이어진다</td></tr>
+        <tr><td>비용</td><td>저장·복원은 µs 단위, 더 큰 비용은 식은 캐시</td></tr>
+        <tr><td>인터럽트</td><td>그 자체는 전환이 아니지만, 누군가를 깨우면 전환을 부른다</td></tr>
+        <tr><td>async</td><td>코루틴 교대에는 컨텍스트 스위치가 없지만, 루프 스레드는 여전히 커널의 전환을 겪는다</td></tr>
+        <tr><td>관찰</td><td><code>/proc/&lt;PID&gt;/task/*/status</code>, <code>pidstat -wt</code>, <code>vmstat</code>의 <code>cs</code>. 자발적은 기다림, 비자발적은 코어 경쟁</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="wrap">
+  <h3>더 읽어보기 (출처)</h3>
+  <ul>
+    <li>man7.org — <a href="https://man7.org/linux/man-pages/man5/proc_pid_status.5.html">proc_pid_status(5)</a> (<code>voluntary_ctxt_switches</code> · <code>nonvoluntary_ctxt_switches</code>의 의미)</li>
+    <li>Tsuna's blog — <a href="https://blog.tsunanet.net/2010/11/how-long-does-it-take-to-make-context.html">How long does it take to make a context switch?</a> (코어 고정 시 1~2µs · 미고정 3~4µs · 시스템 콜 50~105ns는 모드 전환 · 캐시까지 친 경험칙 약 30µs)</li>
+    <li>Linux 커널 소스 — <a href="https://github.com/torvalds/linux/blob/v6.12/kernel/sched/fair.c">kernel/sched/fair.c (v6.12)</a> (<code>sysctl_sched_base_slice</code> 기본 0.75ms와 CPU 수에 따른 로그 배수 · v6.15부터 0.7ms)</li>
+    <li>Linux 커널 문서 — <a href="https://docs.kernel.org/scheduler/sched-eevdf.html">EEVDF Scheduler</a> (6.6부터 EEVDF · 몫과 마감 기준 선택)</li>
+    <li>Wikipedia — <a href="https://en.wikipedia.org/wiki/Compatible_Time-Sharing_System">Compatible Time-Sharing System</a> (1961 시연 · 개조한 IBM 709와 타이머 인터럽트)</li>
+    <li>Wikipedia — <a href="https://en.wikipedia.org/wiki/Cooperative_multitasking">Cooperative multitasking</a> (Windows 3.1 · 클래식 Mac OS의 협력형)</li>
+    <li>gunicorn 소스 — <a href="https://github.com/benoitc/gunicorn/blob/master/gunicorn/config.py">gunicorn/config.py</a> (<code>worker_class</code> 기본 <code>sync</code>, <code>threads</code> 기본 1)</li>
+    <li>본문 실측 — <code>python:3.11-slim</code> 컨테이너(리눅스 6.12, CPU 14개, <code>HZ=1000</code>), <code>--cpuset-cpus=0</code>, <code>/proc/self/status</code> 전후 차이 (A~F), E의 시스템 콜 수는 <code>strace -c</code></li>
+  </ul>
+  <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+</footer>
+
+<!-- TOC 현재 위치 하이라이트 -->
+<script>
+  const links = [...document.querySelectorAll('nav.toc a')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      const a = map.get(e.target.id);
+      if (a && e.isIntersecting) {
+        links.forEach(l => { l.style.color = ''; l.style.fontWeight = ''; });
+        a.style.color = 'var(--accent)';
+        a.style.fontWeight = '700';
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>

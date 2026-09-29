@@ -201,7 +201,7 @@
     <h1>주니어 개발자를 위한<br>안내서 모음</h1>
     <p class="lede">매주 하나의 키워드를 골라, 왜 그것이 존재하게 됐는지부터 우리 스택 어디에 숨어 있는지까지 한 편으로 끝내는 문서들. 각 편은 독립적이라 아무 순서로 읽어도 됩니다.</p>
     <div class="meta-row">
-      <span class="pill">📚 10편</span>
+      <span class="pill">📚 11편</span>
       <span class="pill">☕ 편당 15~45분</span>
       <span class="pill">🐍 Python·Django 스택으로 연결</span>
     </div>
@@ -213,6 +213,21 @@
   <p class="kicker">최신순</p>
 
   <div class="cards">
+
+    <a class="card" href="context-switch-guide.html">
+      <div class="top">
+        <span class="no">11</span>
+        <h3>Context Switch — CPU는 왜 계속 갈아탈까</h3>
+        <span class="date">2026-09-28</span>
+      </div>
+      <p class="desc">스레드를 하나도 만들지 않은 Django 워커도 쿼리마다, 몇 ms마다 CPU에서 내려온다. 기다리는 동안 코어를 넘기는 선택이 자발적 전환을, 몫이 끝나면 빼앗는 선택이 비자발적 전환을 낳았고, 빈자리는 다른 워커·커널 스레드·SDK 스레드가 채운다. async가 코루틴 교대에서만 전환을 없앨 뿐 커널의 전환에서는 벗어나지 못한다는 것, 그리고 /proc 의 두 숫자를 읽는 법까지.</p>
+      <p class="quote">💬 스레드를 직접 만들지 않아도 context switch는 발생합니다. CPU는 왜 계속 다른 실행 주체로 갈아치울까?</p>
+      <div class="tags">
+        <span class="tag">🧭 우선한 것 · 버린 것 · 생긴 개념</span>
+        <span class="tag">🔬 /proc 로 직접 세어 봄</span>
+        <span class="tag">⚠️ 자발적 vs 비자발적</span>
+      </div>
+    </a>
 
     <a class="card" href="jit-guide.html">
       <div class="top">
