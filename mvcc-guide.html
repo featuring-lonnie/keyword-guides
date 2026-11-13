@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<title>MVCC — 읽는 쪽과 쓰는 쪽이 서로 기다리지 않는 법</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-soft: #161b22;
+    --bg-card: #1a2029;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --text-faint: #6b7683;
+    --accent: #58a6ff;
+    --accent-2: #7ee787;
+    --cmd: #ff9e64;
+    --qry: #79c0ff;
+    --warn: #f0b429;
+    --danger: #f47067;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+    --maxw: 860px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f6f8fa;
+      --bg-card: #ffffff;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --text-dim: #57606a;
+      --text-faint: #8c959f;
+      --accent: #0969da;
+      --accent-2: #1a7f37;
+      --cmd: #bc4c00;
+      --qry: #0550ae;
+      --warn: #9a6700;
+      --danger: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(1200px 400px at 50% -50%, rgba(88,166,255,0.10), transparent);
+  }
+  .eyebrow {
+    font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 18px;
+    font-weight: 800; letter-spacing: -0.02em;
+  }
+  .lede { font-size: 19px; color: var(--text-dim); max-width: 680px; margin: 0; }
+  .quote-hero {
+    margin: 22px 0 0; padding: 12px 18px; border-left: 3px solid var(--accent);
+    background: var(--bg-soft); border-radius: 0 8px 8px 0; font-size: 16px; color: var(--text-dim);
+  }
+  .quote-hero strong { color: var(--text); }
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .pill {
+    font-size: 13px; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  nav.toc {
+    margin: 34px 0; padding: 22px 24px; background: var(--bg-soft);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  nav.toc h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-faint); margin: 0 0 14px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 34px; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  nav.toc li { margin: 5px 0; break-inside: avoid; }
+  nav.toc a { color: var(--text); text-decoration: none; font-size: 15px; }
+  nav.toc a:hover { color: var(--accent); }
+
+  main { padding: 10px 0 80px; }
+  section { padding: 34px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2.sec {
+    font-size: clamp(24px, 4vw, 32px); font-weight: 800; letter-spacing: -0.02em;
+    margin: 0 0 6px; scroll-margin-top: 20px;
+  }
+  h2.sec .num {
+    display: inline-block; font-family: var(--mono); font-size: 15px; color: var(--accent);
+    background: rgba(88,166,255,0.12); border-radius: 8px; padding: 2px 10px; margin-right: 12px;
+    vertical-align: middle; font-weight: 600;
+  }
+  h3 { font-size: 20px; font-weight: 700; margin: 30px 0 10px; letter-spacing: -0.01em; }
+  h4 { font-size: 16px; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+  p { margin: 12px 0; }
+  strong { color: var(--text); font-weight: 700; }
+  a { color: var(--accent); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 7px 0; }
+
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    padding: 1.5px 6px; border-radius: 6px; color: var(--accent-2);
+  }
+  pre {
+    background: #0b0e13; border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; margin: 16px 0; position: relative;
+    font-size: 14px; line-height: 1.6;
+  }
+  @media (prefers-color-scheme: light) { pre { background: #f6f8fa; } }
+  pre code { background: none; border: none; padding: 0; color: var(--text); font-size: 14px; }
+  .c-kw { color: #ff7b72; } .c-fn { color: #d2a8ff; } .c-str { color: #a5d6ff; }
+  .c-com { color: var(--text-faint); font-style: italic; } .c-num { color: #79c0ff; }
+  .c-ok { color: var(--accent-2); } .c-bad { color: var(--danger); }
+  @media (prefers-color-scheme: light) {
+    .c-kw { color: #cf222e; } .c-fn { color: #8250df; } .c-str { color: #0a3069; } .c-num { color: #0550ae; }
+  }
+  .code-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-faint); margin: 18px 0 -8px;
+  }
+
+  .box {
+    margin: 20px 0; padding: 16px 20px; border-radius: 12px;
+    border: 1px solid var(--border); border-left-width: 4px; background: var(--bg-card);
+  }
+  .box .tag { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+  .box p:first-of-type { margin-top: 4px; }
+  .box p:last-child { margin-bottom: 0; }
+  .box.tip { border-left-color: var(--accent-2); }
+  .box.tip .tag { color: var(--accent-2); }
+  .box.warn { border-left-color: var(--warn); }
+  .box.warn .tag { color: var(--warn); }
+  .box.danger { border-left-color: var(--danger); }
+  .box.danger .tag { color: var(--danger); }
+  .box.note { border-left-color: var(--accent); }
+  .box.note .tag { color: var(--accent); }
+  .box.analogy { border-left-color: #d2a8ff; }
+  .box.analogy .tag { color: #d2a8ff; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0; }
+  @media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+  .split .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--bg-card); }
+  .split .card.cmd { border-top: 3px solid var(--cmd); }
+  .split .card.qry { border-top: 3px solid var(--qry); }
+  .split .card h4 { margin-top: 0; font-size: 18px; }
+  .split .card.cmd h4 { color: var(--cmd); }
+  .split .card.qry h4 { color: var(--qry); }
+  .split .card ul { padding-left: 18px; margin: 8px 0 0; font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: none; }
+
+  .diagram {
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre;
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; overflow-x: auto; color: var(--text-dim); margin: 18px 0;
+  }
+  .kicker { color: var(--text-dim); font-size: 15px; margin: 2px 0 18px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 22px 0; }
+  @media (max-width: 640px) { .stat-row { grid-template-columns: 1fr; } }
+  .stat {
+    border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: var(--bg-card);
+  }
+  .stat .big { font-size: 26px; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+  .ladder { counter-reset: step; margin: 20px 0; padding: 0; list-style: none; }
+  .ladder li {
+    position: relative; padding: 14px 18px 14px 60px; margin: 12px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .ladder li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 16px; top: 14px; width: 30px; height: 30px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 15px;
+  }
+  .ladder li strong { display: block; margin-bottom: 3px; }
+
+  .timeline { margin: 20px 0; padding: 0; list-style: none; }
+  .timeline li {
+    position: relative; padding: 12px 18px 12px 110px; margin: 10px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .timeline li .yr {
+    position: absolute; left: 16px; top: 14px;
+    font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--accent);
+  }
+  .timeline li strong { display: block; margin-bottom: 2px; }
+  .timeline li span.desc { font-size: 15px; color: var(--text-dim); }
+  @media (max-width: 640px) {
+    .timeline li { padding-left: 18px; padding-top: 38px; }
+  }
+
+  footer { padding: 40px 0 60px; color: var(--text-faint); font-size: 14px; }
+  footer h3 { color: var(--text-dim); font-size: 15px; }
+  footer a { color: var(--text-dim); }
+  footer ul { padding-left: 20px; }
+
+  .tldr {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(126,231,135,0.06));
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin: 24px 0;
+  }
+  .tldr .tag { color: var(--accent); font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+  .tldr p { margin: 8px 0 0; font-size: 16px; }
+
+  /* ===== 모바일 대응 (mobile) ===== */
+  html { -webkit-text-size-adjust: 100%; }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px; }
+    header.hero { padding: 48px 0 34px; }
+    h1 { font-size: clamp(25px, 7.2vw, 34px); }
+    .lede { font-size: 17px; }
+    .quote-hero { font-size: 15px; padding: 11px 15px; }
+    .pill { font-size: 12px; padding: 5px 11px; }
+    main { padding: 6px 0 56px; }
+    section { padding: 26px 0; }
+    h2.sec { font-size: clamp(21px, 5.6vw, 26px); }
+    h2.sec .num { font-size: 13px; padding: 2px 8px; margin-right: 9px; }
+    h3 { font-size: 18px; }
+
+    /* 긴 식별자(innodb_flush_log_at_trx_commit 등)가 표·문단을 밀어내지 않도록 */
+    /* 긴 토큰은 code 안에만 있으므로 줄바꿈 허용은 code로 한정한다.
+       셀 전체에 걸면 'PostgreSQL'이 글자 단위로 쪼개진다. */
+    code { overflow-wrap: anywhere; }
+    th, td { padding: 9px 10px; font-size: 14px; }
+    th { font-size: 12px; }
+    td code, th code { font-size: 0.82em; }
+
+    pre { padding: 14px 15px; }
+    pre, pre code { font-size: 13px; }
+    .diagram { font-size: 11px; padding: 15px; line-height: 1.45; }
+    .box { padding: 14px 16px; }
+    .tldr { padding: 17px 18px; }
+    .tldr p { font-size: 15px; }
+    .stat .big { font-size: 23px; }
+    .ladder li { padding: 13px 15px 13px 52px; }
+    .ladder li::before { left: 13px; top: 13px; width: 27px; height: 27px; font-size: 14px; }
+    nav.toc { padding: 18px 18px; margin: 26px 0; }
+    footer { padding: 30px 0 48px; }
+
+    /* index.html 카드 */
+    a.card { padding: 17px 18px; }
+    a.card h3 { font-size: 19px; }
+    a.card .date { margin-left: 0; width: 100%; order: 3; }
+    a.card .desc, a.card .quote { font-size: 14px; }
+  }
+
+  /* ===== 목록 back-link ===== */
+  .backlink {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    color: var(--text-dim); margin-bottom: 20px;
+    padding: 5px 12px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft);
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .backlink:hover { color: var(--accent); border-color: var(--accent); }
+  footer .backlink { margin: 26px 0 0; }
+</style>
+</head>
+<body>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="wrap">
+    <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+    <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
+    <h1>MVCC<br>읽는 쪽과 쓰는 쪽이 서로 기다리지 않는 법</h1>
+    <p class="lede">결제 트랜잭션이 잔액을 50으로 바꾸고 아직 커밋하지 않았습니다. 그 순간 다른 요청이 같은 잔액을 읽으면 무엇을 받을까요? 기다리지도 않고 0.3ms 만에 100이 돌아옵니다. 데이터베이스는 그 행을 두 벌 들고 있었기 때문입니다. 그렇다면 두 요청이 동시에 잔액을 고치면, 그때도 서로 방해하지 않을까요?</p>
+    <p class="quote-hero">💬 <strong>"트랜잭션은 어떻게 서로의 작업을 방해하지 않고 데이터를 읽고 쓸까? 데이터베이스가 하나의 데이터에 여러 버전을 가지고 있는 것을 아는가? 각 벤더사마다 이것을 푸는 방법도 다르다."</strong></p>
+    <div class="meta-row">
+      <span class="pill">☕ 읽는 데 ~44분</span>
+      <span class="pill">🧭 우선한 것 · 버린 것 · 생긴 개념</span>
+      <span class="pill">🔬 PostgreSQL 두 세션으로 직접 돌려 봄</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TOC ============ -->
+<div class="wrap">
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#intro">방해하지 않는 것은 절반뿐이다</a></li>
+      <li><a href="#terms">트랜잭션과 격리 수준</a></li>
+      <li><a href="#choice1">선택 ① 잠금으로 줄을 세운다</a></li>
+      <li><a href="#choice2">선택 ② 옛 버전을 남겨 둔다</a></li>
+      <li><a href="#choice3">선택 ③ 어느 시점을 기준으로 볼 것인가</a></li>
+      <li><a href="#choice4">선택 ④ 쓰기끼리는 다시 줄을 선다</a></li>
+      <li><a href="#choice5">선택 ⑤ 스냅샷으로도 못 막는 어긋남</a></li>
+      <li><a href="#vendors">선택 ⑥ 옛 버전은 어디에 두고 언제 치우나</a></li>
+      <li><a href="#practice">실무 — Django에서</a></li>
+      <li><a href="#cheatsheet">한 장 요약 치트시트</a></li>
+    </ol>
+  </nav>
+</div>
+
+<main class="wrap">
+
+  <section id="intro">
+    <h2 class="sec"><span class="num">00</span>방해하지 않는 것은 절반뿐이다</h2>
+    <p class="kicker">질문의 전제부터 짚고, 짧은 답을 먼저 둡니다</p>
+    <p>질문에는 전제가 하나 숨어 있습니다. "트랜잭션은 서로 방해하지 않는다." 이 말은 절반만 맞습니다. 읽는 쪽과 쓰는 쪽은 서로를 기다리지 않습니다. 하지만 <strong>같은 행을 고치려는 두 쓰기는 지금도 줄을 섭니다.</strong> 둘 중 하나는 기다리거나, 에러를 받고 처음부터 다시 해야 합니다.</p>
+    <p>읽기와 쓰기가 서로 기다리지 않는 비결이 질문의 두 번째 줄입니다. 데이터베이스는 한 행의 여러 버전을 함께 들고 있습니다. 누가 행을 고치는 동안에도 읽는 쪽은 고치기 전 버전을 봅니다. 이 방식을 <strong>MVCC(Multi-Version Concurrency Control, 다중 버전 동시성 제어)</strong>라고 부릅니다.</p>
+    <p>세 번째 줄, 벤더마다 푸는 방법이 다르다는 것도 맞습니다. 가장 먼저 부딪히는 차이는 <strong>기본 격리 수준</strong>입니다. PostgreSQL 은 기본으로 문장마다 새 기준 시점을 잡고, MySQL 의 기본 저장 엔진(테이블을 실제로 저장하고 읽고 쓰는 부품)인 InnoDB 는 트랜잭션에 한 번 잡습니다. 그 밖에 쓰기가 부딪혔을 때 에러를 낼지 최신 값에 쓸지, 옛 버전을 어디에 두고 언제 치울지가 갈립니다. 다만 Django 는 두 DB 를 모두 READ COMMITTED 로 연결하므로, Django 에서는 격리 수준을 올렸을 때와 옛 버전을 치울 때 이 차이를 만납니다.</p>
+    <p>읽기 위주 작업과 쓰기 위주 작업이 다른 구성을 고르는 이유도 첫 문단에 있습니다. 버전 덕분에 사라진 기다림은 읽기와 쓰기 사이뿐이라, 조회가 대부분인 작업은 MVCC 덕을 크게 보고 같은 행에 쓰기가 몰리는 작업은 거의 못 봅니다. 그래서 둘은 격리 수준, 쓰는 방식, 테이블 배치를 다르게 고릅니다(08장 3번).</p>
+
+    <div class="box note">
+      <span class="tag">이 문서가 답하는 것</span>
+      <p>① 읽기는 왜 쓰기를 기다리지 않게 됐나 ② 같은 SELECT 를 두 번 했는데 값이 다른 것은 정상인가 ③ 동시에 잔액을 고치면 무엇이 사라지고, PostgreSQL 과 MySQL 은 그때 왜 다르게 행동하나 ④ Django 에서 이것을 어떻게 다루나 ⑤ 읽기 위주와 쓰기 위주 작업에서 고르는 구성이 왜 달라지나. 다 읽으면 "격리 수준" 설정 한 줄이 실제로 무엇을 바꾸는지 설명할 수 있습니다.</p>
+    </div>
+  </section>
+
+  <section id="terms">
+    <h2 class="sec"><span class="num">01</span>트랜잭션과 격리 수준</h2>
+    <p class="kicker">뒤에서 계속 쓰는 말</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 트랜잭션 · 커밋 · 롤백</span>
+      <p><strong>트랜잭션</strong>은 "전부 반영되거나 전부 없던 일이 되거나" 둘 중 하나로 끝나는 SQL 묶음입니다. 계좌 이체의 출금과 입금이 대표적입니다. <strong>커밋(COMMIT)</strong>은 묶음의 변경을 확정해 다른 트랜잭션에도 보이게 하는 것이고, <strong>롤백(ROLLBACK)</strong>은 묶음 전체를 취소하는 것입니다. Django 에서는 가장 바깥의 <code>transaction.atomic()</code> 블록 하나가 트랜잭션 하나입니다. 그 안에 겹쳐 쓴 atomic 은 트랜잭션이 아니라 저장점(savepoint, 그 지점까지만 되돌릴 수 있게 찍어 두는 표시)이 됩니다.</p>
+    </div>
+
+    <p>트랜잭션 하나만 돌 때는 문제가 없습니다. 문제는 웹 서버가 요청을 동시에 처리하면서 생깁니다. 여러 트랜잭션이 같은 행을 동시에 만지면, 혼자 돌았다면 나오지 않았을 결과가 나옵니다. 대표적인 것은 다음과 같습니다.</p>
+
+    <table>
+      <thead><tr><th>이상 현상</th><th>무슨 일이 생기나</th></tr></thead>
+      <tbody>
+        <tr><td>더티 리드</td><td>남이 아직 커밋하지 않은 값을 읽는다. 그 트랜잭션이 롤백하면 존재한 적 없는 값을 본 셈이 된다</td></tr>
+        <tr><td>반복 불가능한 읽기</td><td>한 트랜잭션 안에서 같은 행을 두 번 읽었는데, 사이에 남이 커밋해서 값이 다르다</td></tr>
+        <tr><td>팬텀(phantom)</td><td>같은 조건으로 두 번 조회했는데, 사이에 남이 넣은 행이 새로 나타난다</td></tr>
+        <tr><td>갱신 분실(lost update)</td><td>둘이 같은 값을 읽고 각자 계산해 저장하면, 먼저 저장한 쪽의 변경이 사라진다</td></tr>
+      </tbody>
+    </table>
+    <p>앞의 셋은 SQL 표준이 격리 수준을 정의할 때 쓰는 현상입니다. 갱신 분실은 표준 목록에는 없지만 실무에서 가장 자주 만나는 문제라 함께 둡니다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 격리 수준</span>
+      <p><strong>격리 수준</strong>은 "이 트랜잭션이 남의 동시 작업에서 얼마나 떨어져 있을지"를 고르는 설정입니다. SQL 표준은 약한 순서로 READ UNCOMMITTED · READ COMMITTED · REPEATABLE READ · SERIALIZABLE 넷을 정의합니다. 강할수록 위 이상 현상을 더 많이 막고, 그 대신 기다림이나 실패가 늘어납니다. 가장 강한 SERIALIZABLE 은 "트랜잭션을 하나씩 차례로 돌린 것과 같은 결과"를 보장합니다.</p>
+    </div>
+
+    <p>표준은 "어떤 현상을 막아야 하는가"만 정하고 "어떻게 막을지"는 정하지 않습니다. 그래서 같은 이름의 격리 수준이 벤더마다 다르게 동작합니다. 지금부터 볼 선택들은 전부 "어떻게 막을까"에 대한 답입니다.</p>
+  </section>
+
+  <section id="choice1">
+    <h2 class="sec"><span class="num">02</span>선택 ① 잠금으로 줄을 세운다</h2>
+    <p class="kicker">가장 먼저 떠오르는 방법 — 한 행에는 한 버전만 둔다</p>
+    <p>가장 단순한 해법은 행마다 자물쇠를 다는 것입니다. 행의 버전은 하나뿐이니, 누가 쓰는 동안 다른 사람이 읽으면 반쯤 바뀐 값이나 롤백될 값을 볼 수 있습니다. 그러니 쓰는 동안에는 아무도 못 읽게, 읽는 동안에는 아무도 못 쓰게 막습니다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 공유 잠금 · 배타 잠금</span>
+      <p><strong>공유 잠금(shared lock)</strong>은 읽을 때 거는 잠금입니다. 여러 트랜잭션이 함께 걸 수 있지만, 걸려 있는 동안 아무도 그 행을 고치지 못합니다. <strong>배타 잠금(exclusive lock)</strong>은 쓸 때 거는 잠금입니다. 걸려 있는 동안 다른 트랜잭션은 그 행에 공유 잠금도 배타 잠금도 걸지 못하고 기다립니다.</p>
+    </div>
+
+    <p>잠금을 아무 때나 풀면 결과가 꼬입니다. x 를 읽고 잠금을 바로 풀었다고 해 봅시다. 그사이 남이 x 와 y 를 함께 고쳐 커밋하고, 나는 y 를 새 값으로 읽습니다. 내가 본 x 는 옛 시점, y 는 새 시점이라 두 값이 맞지 않습니다. 그래서 규칙이 하나 생겼습니다. 트랜잭션은 필요한 잠금을 모으기만 하다가, 하나라도 풀기 시작한 뒤에는 새 잠금을 얻지 않습니다. 이것이 <strong>2단계 잠금(2PL, Two-Phase Locking)</strong>이고, 실무에서는 잠금을 커밋할 때까지 쥐었다가 한꺼번에 푸는 형태로 씁니다.</p>
+    <p>2PL 만으로 끝나지는 않습니다. 행만 잠그면, 내가 조건으로 조회한 범위에 남이 새 행을 INSERT 하는 팬텀은 막지 못합니다. 잠그는 대상에 "조건에 맞는 범위"까지 넣어야(InnoDB 의 next-key lock 같은 범위 잠금) 결과가 트랜잭션을 하나씩 돌린 것과 같아집니다.</p>
+    <p>읽기가 쓰기를 실제로 얼마나 기다리는지 PostgreSQL 에서 흉내 내 봤습니다. <code>SELECT ... FOR SHARE</code> 는 읽으면서 공유 잠금을 거는 문장입니다. 한 세션이 행을 고치고 커밋하지 않은 채 두고, 다른 세션이 공유 잠금으로 읽습니다.</p>
+
+    <p class="code-label">실측 — PostgreSQL 14, 로컬 테스트용 DB 서버, 두 세션 (발췌)</p>
+<pre><code>A: UPDATE account SET balance = 50 WHERE id = 1   <span class="c-com">-- 커밋 전</span>
+B: SELECT balance ... FOR SHARE   <span class="c-com">-- 1초 뒤에도 대기 중</span>
+A: COMMIT
+B: -> 50   <span class="c-com">-- A 가 커밋한 뒤에야, 약 1.1초 기다려서 받음</span></code></pre>
+
+    <p>B 는 A 가 끝날 때까지 아무것도 못 했습니다. A 가 1초 걸렸으니 1초를 기다렸고, A 가 외부 API 를 부르느라 10초 걸렸다면 10초를 기다렸을 것입니다. 이 방식에서는 매출 집계 같은 긴 읽기 쿼리가 결제 같은 짧은 쓰기를 붙잡고, 그 반대도 일어납니다.</p>
+    <p>이 방식은 옛날이야기가 아닙니다. Microsoft 문서에 따르면 직접 설치한 SQL Server 는 별도 설정이 없으면 READ COMMITTED 를 공유 잠금으로 구현합니다(Azure SQL Database 는 기본이 버전 읽기입니다). 다만 행을 읽은 직후 공유 잠금을 풀기 때문에 2PL 은 아니고, 그래서 01장의 반복 불가능한 읽기가 생깁니다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 데드락</span>
+      <p><strong>데드락(교착 상태)</strong>은 A 가 B 의 잠금을, B 가 A 의 잠금을 서로 기다리는 상태입니다. 둘 다 영원히 기다리게 되므로, 데이터베이스는 이를 감지하면 한쪽 트랜잭션을 에러로 끝내 풀어 줍니다. 잠금을 많이 오래 쥘수록 잘 생깁니다.</p>
+    </div>
+
+    <div class="split">
+      <div class="card cmd">
+        <h4>✅ 우선한 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>단순한 정확성</strong></p>
+        <ul><li>행마다 버전이 하나라 "지금 값"이 무엇인지 모호하지 않다</li><li>2단계 잠금에 범위 잠금까지 더하면 하나씩 돌린 것과 같은 결과가 나온다</li></ul>
+      </div>
+      <div class="card qry">
+        <h4>🗑️ 버린 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>읽기와 쓰기 사이의 동시성</strong></p>
+        <ul><li>버전이 하나뿐이라 쓰는 중인 행은 읽을 수 없다. 읽기가 쓰기를, 쓰기가 읽기를 기다린다</li><li>잠금을 오래 쥘수록 기다림이 길어지고 데드락이 잦아진다</li></ul>
+      </div>
+    </div>
+    <p><strong>이 선택에서 생긴 개념:</strong> 공유 잠금과 배타 잠금, 2단계 잠금과 범위 잠금, 데드락과 그 감지.</p>
+  </section>
+
+  <section id="choice2">
+    <h2 class="sec"><span class="num">03</span>선택 ② 옛 버전을 남겨 둔다</h2>
+    <p class="kicker">읽는 사람에게는 고치기 전 사본을 보여 주면 된다</p>
+    <p>선택 ①에서 읽기가 막힌 이유는 버전이 하나뿐이어서였습니다. 그렇다면 버전을 여러 개 두면 됩니다. 쓰는 쪽은 새 버전을 만들고, 그 버전이 커밋되기 전까지 다른 트랜잭션에는 옛 버전을 보여 줍니다. 읽는 쪽은 잠금을 걸 필요가 없습니다. 이것이 MVCC 이고, 이 아이디어는 1978년 MIT 박사 논문에서 처음 정리됐습니다.</p>
+    <p>PostgreSQL 공식 문서는 MVCC 의 핵심을 이렇게 요약합니다(의역). <strong>읽기는 쓰기를 막지 않고, 쓰기도 읽기를 막지 않는다.</strong> 선택 ①과 같은 상황을 이번에는 잠금 없는 보통 SELECT 로 다시 돌렸습니다.</p>
+
+    <p class="code-label">실측 — 같은 상황, 보통 SELECT, READ COMMITTED(PostgreSQL 기본) (발췌)</p>
+<pre><code>A: UPDATE account SET balance = 50 WHERE id = 1   <span class="c-com">-- 커밋 전</span>
+B: SELECT balance ...   <span class="c-com">-- -> 100, 0.3ms, 기다리지 않음</span>
+A: COMMIT
+B: SELECT balance ...   <span class="c-com">-- -> 50 (같은 B 트랜잭션 안의 다음 문장)</span></code></pre>
+
+    <p>B 는 기다리지 않고, 아직 커밋되지 않은 50 대신 커밋된 마지막 값 100 을 받았습니다. 더티 리드도 생기지 않았습니다. 같은 트랜잭션 안의 두 번째 SELECT 가 50 으로 바뀐 이유는 04장에서 봅니다. 그러면 데이터베이스는 어느 버전을 누구에게 보여 줄지 어떻게 정할까요?</p>
+
+    <h3>버전마다 붙은 두 개의 꼬리표</h3>
+    <p>PostgreSQL 은 트랜잭션이 처음 쓰기를 할 때 계속 늘어나는 번호(트랜잭션 ID)를 붙입니다. 읽기만 하는 트랜잭션은 번호를 받지 않습니다. 다만 <code>SELECT ... FOR UPDATE</code> · <code>FOR SHARE</code> 처럼 행을 잠그는 읽기는 쓰기로 쳐서 번호를 받습니다. 그리고 행의 버전마다 이 번호 두 개를 숨은 컬럼으로 적어 둡니다. <code>xmin</code> 은 이 버전을 만든 트랜잭션, <code>xmax</code> 는 이 버전을 지우거나 새 버전으로 바꾼 트랜잭션입니다(0 이면 아직 아무도 바꾸지 않음). <code>FOR UPDATE</code> 같은 행 잠금도 잠근 트랜잭션 번호를 여기에 적는데, 이때는 버전이 지워진 것이 아닙니다. 둘 다 <code>SELECT xmin, xmax, *</code> 로 볼 수 있습니다.</p>
+
+    <p class="code-label">실측 — xmin · xmax (발췌)</p>
+<pre><code><span class="c-com">-- 754번 트랜잭션이 넣은 행. A 의 트랜잭션 ID 는 756</span>
+A: UPDATE account SET balance = 50 WHERE id = 1   <span class="c-com">-- 커밋 전</span>
+A 가 보는 행 ->  xmin=756  xmax=0    balance=50    <span class="c-com">-- 자기가 만든 새 버전</span>
+B 가 보는 행 ->  xmin=754  xmax=756  balance=100   <span class="c-com">-- 756이 바꾸는 중인 옛 버전</span>
+A: COMMIT
+새 트랜잭션  ->  xmin=756  xmax=0    balance=50</code></pre>
+
+    <p>같은 순간에 A 와 B 는 서로 다른 버전을 봤습니다. B 가 본 옛 버전에는 "756번이 이 버전을 끝냈다"는 표시가 붙어 있지만, 756번은 아직 커밋하지 않았습니다. 그래서 B 에게 이 옛 버전은 아직 살아 있는 버전입니다. 판단 규칙을 줄이면 이렇습니다.</p>
+
+    <div class="diagram">이 버전이 나에게 보이는가?
+
+  내가 만든 버전이고, 내가 다시 지우지 않았다           ── 예 ─▶ 보임 (커밋 전이어도)
+            │ 아니오
+            ▼
+  xmin 트랜잭션이 커밋됐고, 내 기준 시점 전에 커밋됐다   ── 아니면 ─▶ 안 보임
+            │ 예
+            ▼
+  xmax 가 비었거나 잠금 표시뿐이거나,
+  xmax 가 남의 트랜잭션이고 커밋 전(또는 롤백)이거나,
+  내 기준 시점 뒤에 커밋됐다                            ── 아니면 ─▶ 안 보임 (이미 지워진 버전)
+            │ 예
+            ▼
+          보임</div>
+
+    <p>규칙에 나온 "내 기준 시점"이 다음 장의 주제입니다. 옛 버전이 실제로 어디에 놓이는지는 엔진마다 다릅니다. PostgreSQL 은 새 버전을 테이블 안에 옛 버전과 나란히 씁니다. MySQL 의 InnoDB 는 행을 제자리에서 고치면서 옛 값을 undo log 에 옮겨 둡니다. undo log 는 이름대로 롤백할 때 변경을 되돌리는 데 쓰는 기록이고, 옛 버전을 봐야 하는 트랜잭션도 이 기록을 거슬러 가 옛 값을 되살립니다. 두 방식 모두 MVCC 입니다. 어느 쪽이든 옛 버전은 볼 사람이 남아 있는 동안 지울 수 없고, 나중에 누군가 치워야 합니다(07장).</p>
+
+    <div class="box analogy">
+      <span class="tag">📚 비유</span>
+      <p>공유 문서의 버전 기록을 떠올려 보세요. 누가 문서를 고치는 동안에도 다른 사람은 마지막으로 저장된 판을 읽을 수 있습니다. 고치는 사람이 저장을 눌러야(커밋) 새 판이 모두에게 보입니다. 다만 데이터베이스는 문서 하나가 아니라 행마다 이 기록을 따로 둡니다.</p>
+    </div>
+
+    <div class="split">
+      <div class="card cmd">
+        <h4>✅ 우선한 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>읽기와 쓰기 사이의 동시성</strong></p>
+        <ul><li>보통 SELECT 는 잠금을 걸지 않고, 쓰는 중인 행도 옛 버전으로 바로 읽는다</li><li>긴 읽기 쿼리가 짧은 쓰기를 붙잡지 않는다</li></ul>
+      </div>
+      <div class="card qry">
+        <h4>🗑️ 버린 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>"값은 하나"라는 단순함</strong></p>
+        <ul><li>한 행의 버전이 여럿이 되어 공간을 더 쓰고, 다 쓴 버전을 치우는 작업이 따로 필요하다</li><li>트랜잭션마다 보이는 값이 다를 수 있어, 어느 시점의 값을 볼지 따로 정해야 한다</li></ul>
+      </div>
+    </div>
+    <p><strong>이 선택에서 생긴 개념:</strong> 행 버전, 트랜잭션 ID, 가시성 규칙(<code>xmin</code> · <code>xmax</code>), undo log, 잠그지 않는 읽기.</p>
+  </section>
+
+  <section id="choice3">
+    <h2 class="sec"><span class="num">04</span>선택 ③ 어느 시점을 기준으로 볼 것인가</h2>
+    <p class="kicker">기준 시점을 문장마다 잡느냐, 트랜잭션에 한 번 잡느냐</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 스냅샷</span>
+      <p><strong>스냅샷</strong>은 "이 순간까지 커밋된 트랜잭션은 어디까지인가"를 적은 메모입니다. 데이터를 복사하는 것이 아닙니다. 앞 장의 가시성 규칙에서 "내 기준 시점"이 이 메모입니다. 스냅샷에 들어 있는 트랜잭션이 만든 버전만 보입니다.</p>
+    </div>
+
+    <p>선택 ②가 남긴 숙제는 "어느 시점의 값을 보여 줄까"였습니다. 답은 두 가지로 갈립니다. PostgreSQL 과 InnoDB 는 문장(SQL 한 줄)을 실행할 때마다 새 스냅샷을 잡는 것으로 <strong>READ COMMITTED</strong> 를, 트랜잭션에서 한 번 잡은 스냅샷을 끝까지 쓰는 것으로 <strong>REPEATABLE READ</strong> 를 구현합니다. 잠금 방식 엔진은 같은 이름의 수준을 02장처럼 잠금으로 구현합니다. 같은 SELECT 를 두 번 하고 그 사이에 다른 세션이 값을 바꿔 커밋했습니다.</p>
+
+    <p class="code-label">실측 — 같은 SELECT 두 번, 사이에 다른 세션이 70 으로 바꾸고 커밋 (발췌)</p>
+<pre><code>READ COMMITTED    1회차 -> 100   2회차 -> 70    <span class="c-com">-- 문장마다 새 스냅샷</span>
+REPEATABLE READ   1회차 -> 100   2회차 -> 100   <span class="c-com">-- 첫 문장의 스냅샷을 계속 씀</span></code></pre>
+
+    <p>READ COMMITTED 의 2회차가 70 이 된 것은 버그가 아닙니다. 01장의 "반복 불가능한 읽기"가 이 수준에서는 허용된다는 뜻입니다. 매 문장이 최신 커밋을 보니 대부분의 웹 요청에는 이쪽이 자연스럽습니다. PostgreSQL 의 기본 격리 수준이 READ COMMITTED 입니다.</p>
+    <p>REPEATABLE READ 는 트랜잭션 전체가 한 시점의 데이터를 봅니다. 월말 정산처럼 여러 테이블을 차례로 읽어 합계를 맞춰야 할 때, 중간에 들어온 결제 때문에 앞뒤 합계가 어긋나는 일이 없습니다. MySQL InnoDB 의 기본 격리 수준이 이쪽입니다.</p>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 오해: "트랜잭션을 시작한 순간의 데이터"</span>
+      <p>스냅샷은 BEGIN 하는 순간에 잡히지 않습니다. PostgreSQL 은 트랜잭션 제어문이 아닌 첫 문장에서 잡고, InnoDB 는 첫 일관된 읽기, 곧 잠그지 않는 보통 SELECT 에서 잡습니다(두 문서 모두 의역). BEGIN 과 첫 SELECT 사이에 들어온 커밋은 보입니다.</p>
+    </div>
+
+    <div class="split">
+      <div class="card cmd">
+        <h4>✅ 우선한 것 (REPEATABLE READ 쪽)</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>트랜잭션 안의 일관된 읽기</strong></p>
+        <ul><li>같은 것을 여러 번 읽어도 값이 같다</li><li>여러 테이블을 읽어도 한 시점의 상태로 맞아떨어진다</li></ul>
+      </div>
+      <div class="card qry">
+        <h4>🗑️ 버린 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>지금 값과의 일치</strong></p>
+        <ul><li>트랜잭션이 길수록 내가 보는 값이 실제 최신 값에서 멀어진다</li><li>스냅샷이 오래 살아 있는 동안 옛 버전을 치우지 못한다</li><li>옛 스냅샷을 근거로 쓰기를 하면, 그사이 바뀐 실제 값과 부딪힌다</li></ul>
+      </div>
+    </div>
+    <p><strong>이 선택에서 생긴 개념:</strong> 스냅샷, 문장 단위 스냅샷과 트랜잭션 단위 스냅샷.</p>
+  </section>
+
+  <section id="choice4">
+    <h2 class="sec"><span class="num">05</span>선택 ④ 쓰기끼리는 다시 줄을 선다</h2>
+    <p class="kicker">MVCC 가 풀지 않은 나머지 절반</p>
+    <p>버전을 여러 개 두는 것은 읽기를 위한 해법입니다. 같은 행에 두 트랜잭션이 동시에 새 버전을 만들려 하면, 어느 쪽을 다음 버전으로 삼을지 정해야 합니다. 그래서 MVCC 데이터베이스도 쓰기에는 선택 ①의 배타 잠금을 그대로 씁니다. 먼저 고친 트랜잭션이 행 잠금을 쥐고, 나중에 온 쪽은 앞의 트랜잭션이 커밋이나 롤백할 때까지 기다립니다.</p>
+
+    <h3>기다림만으로는 막히지 않는 갱신 분실</h3>
+    <p>잔액 100 에서 A 는 30, B 는 20 을 빼려 합니다. 둘 다 먼저 잔액을 읽고, 애플리케이션에서 뺄셈을 한 다음, 그 결과를 저장합니다. 기대값은 50 입니다.</p>
+
+    <p class="code-label">실측 — 읽고 → 파이썬에서 계산 → 저장, READ COMMITTED (발췌)</p>
+<pre><code>A 읽음 100, B 읽음 100
+A: UPDATE ... SET balance = 70; COMMIT
+B: UPDATE ... SET balance = 80; COMMIT
+최종 balance -> 80   <span class="c-com">-- 기대값 50. A 가 뺀 30 이 사라졌다</span></code></pre>
+
+    <p>A 가 먼저 커밋한 뒤에 B 가 썼으니 두 UPDATE 는 부딪히지도 않았습니다. 문제는 B 가 저장한 80 이 이미 낡은 값 100 에서 계산한 결과라는 점입니다. 데이터베이스는 80 이 낡은 100 에서 나온 줄 모르니 막지 못합니다. 이것이 01장의 갱신 분실입니다.</p>
+
+    <h3>엔진은 부딪힌 쓰기를 어떻게 처리하나</h3>
+    <p>이번에는 뺄셈을 데이터베이스에 맡겨 <code>SET balance = balance - 20</code> 처럼 썼습니다. A 가 먼저 고치고 커밋하기 전에 B 가 같은 행을 고칩니다. 이때 B 의 UPDATE 는 기다리다가, A 가 커밋하면 다음 둘 중 하나가 됩니다.</p>
+
+    <p class="code-label">실측 — 같은 행을 동시에 UPDATE, A 커밋 뒤 B 의 결과 (발췌)</p>
+<pre><code>READ COMMITTED    B: 성공           최종 50
+REPEATABLE READ   B: ERROR: could not serialize access due to concurrent update
+                                     최종 70   <span class="c-com">-- B 는 롤백, 재시도해야 한다</span></code></pre>
+
+    <p>READ COMMITTED 의 B 는 기다린 뒤 A 가 만든 최신 버전을 다시 읽고, WHERE 조건이 여전히 맞는지 확인한 다음 그 위에 뺄셈을 했습니다. 문장마다 최신 커밋을 보기로 한 수준이니 자연스러운 동작입니다.</p>
+    <p>REPEATABLE READ 의 B 앞에는 두 길이 있습니다. 스냅샷에서 본 옛 버전을 기준으로 쓰면 A 의 변경이 사라집니다. 최신 버전을 기준으로 쓰면 B 가 트랜잭션 내내 본 값과 실제로 쓴 근거가 달라집니다. PostgreSQL 은 둘 다 택하지 않고 B 를 에러로 끝냅니다. 같은 이유로, 위의 "읽고 → 계산 → 저장" 실험도 REPEATABLE READ 에서 돌리면 B 의 저장이 같은 에러로 거부되고 A 의 변경이 남습니다.</p>
+    <p>MySQL InnoDB 는 같은 REPEATABLE READ 라는 이름으로 뒤의 길을 택합니다. 공식 문서에 따르면 InnoDB 의 스냅샷은 보통 SELECT 에 적용되고, UPDATE · DELETE 와 잠금 읽기(<code>SELECT ... FOR UPDATE</code>)는 스냅샷을 따르지 않고 가장 최신의 커밋된 값을 대상으로 할 수 있습니다(MySQL 8.4 공식 문서 기준). 그래서 에러 없이 기다렸다가 최신 값에 씁니다.</p>
+    <p>대신 보통 SELECT 로 읽어 둔 값(스냅샷)과 UPDATE · 잠금 읽기가 보는 값(최신)이 어긋날 수 있습니다. 예를 들어 <code>get_or_create()</code> 가 "이미 있다"며 <code>IntegrityError</code> 를 냈는데, 바로 뒤의 <code>get()</code> 으로는 그 행이 안 보입니다. 유니크 검사는 최신 값을, <code>get()</code> 은 옛 스냅샷을 보기 때문입니다. 그리고 "읽고 → 계산 → 저장"의 갱신 분실은 InnoDB 의 READ COMMITTED 와 REPEATABLE READ 모두 막아 주지 않습니다.</p>
+
+    <p>같은 행을 동시에 UPDATE 했을 때 뒤에 온 쪽의 결과를 엔진별로 모으면 이렇습니다.</p>
+    <table>
+      <thead><tr><th>격리 수준</th><th>PostgreSQL</th><th>InnoDB</th></tr></thead>
+      <tbody>
+        <tr><td><code>READ COMMITTED</code></td><td>기다린 뒤 최신 버전에 적용</td><td>기다린 뒤 최신 버전에 적용</td></tr>
+        <tr><td><code>REPEATABLE READ</code></td><td>기다린 뒤 에러, 재시도 필요</td><td>기다린 뒤 최신 버전에 적용, 에러 없음</td></tr>
+      </tbody>
+    </table>
+
+    <div class="split">
+      <div class="card cmd">
+        <h4>✅ 우선한 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>같은 행의 다음 버전은 하나</strong></p>
+        <ul><li>두 쓰기가 한 행에 섞이지 않는다</li><li>PostgreSQL 의 REPEATABLE READ 는 스냅샷과 어긋난 쓰기를 거부한다</li></ul>
+      </div>
+      <div class="card qry">
+        <h4>🗑️ 버린 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>쓰기의 동시성과 단순한 코드</strong></p>
+        <ul><li>같은 행을 고치는 쓰기는 MVCC 에서도 여전히 기다리고, 데드락도 남는다</li><li>거부를 택한 쪽은 애플리케이션이 재시도를 짜야 하고, 거부하지 않는 쪽은 애플리케이션이 갱신 분실을 막아야 한다</li></ul>
+      </div>
+    </div>
+    <p><strong>이 선택에서 생긴 개념:</strong> 쓰기용 행 잠금, 갱신 분실, 직렬화 실패(serialization failure)와 재시도, "최신 값 읽기"인 잠금 읽기.</p>
+  </section>
+
+  <section id="choice5">
+    <h2 class="sec"><span class="num">06</span>선택 ⑤ 스냅샷으로도 못 막는 어긋남</h2>
+    <p class="kicker">서로 다른 행을 고쳤는데 규칙이 깨지는 경우</p>
+    <p>선택 ④는 같은 행을 두 번 고치는 충돌만 잡습니다. 그런데 서로 <strong>다른 행</strong>을 고쳤는데도 규칙이 깨지는 경우가 있습니다. "당직 의사는 최소 한 명" 규칙이 있고 지금 두 명이 당직입니다. 두 의사가 동시에 "나 말고 한 명이 더 있으니 빠져도 된다"고 확인한 뒤, 각자 자기 행만 고칩니다.</p>
+
+    <p class="code-label">실측 — 두 세션이 각자 당직 수를 세고(2명), 각자 자기 행만 off 로 고침 (발췌)</p>
+<pre><code>REPEATABLE READ   A: COMMIT 성공   B: COMMIT 성공            최종 당직 0명
+SERIALIZABLE      A: COMMIT 성공   B: ERROR: could not serialize access due to
+                                      read/write dependencies among transactions
+                                                               최종 당직 1명</code></pre>
+
+    <p>REPEATABLE READ 에서 두 트랜잭션은 서로 다른 행을 고쳤으니 행 잠금으로는 부딪히지 않았습니다. 둘 다 같은 스냅샷(2명)을 근거로 판단했고, 결과는 아무도 하나씩 돌렸다면 나올 수 없는 0명입니다. 이 현상을 <strong>write skew</strong> 라고 부르고, 스냅샷 하나로 트랜잭션을 돌리는 방식(스냅샷 격리)의 알려진 한계입니다.</p>
+    <p>PostgreSQL 의 SERIALIZABLE 은 이 경우를 잡습니다. 트랜잭션들이 무엇을 읽었고 누가 그것을 고쳤는지를 추적합니다. 당직 예에서 A 는 B 의 행을 B 가 고치기 전 값으로 읽었습니다. 하나씩 돌렸다면 A 가 B 보다 먼저 돈 경우에만 나올 수 있는 값입니다. B 도 A 의 행을 A 가 고치기 전 값으로 읽었으니, B 가 A 보다 먼저여야 합니다. 이런 고리는 하나씩 돌린 어떤 순서로도 설명할 수 없습니다. PostgreSQL 은 고리가 생길 수 있는 모양(한 트랜잭션이 읽은 것을 다른 트랜잭션이 고친 관계가 연달아 두 번 이어진 모양)을 보면, 실제로 고리가 완성되지 않았더라도 안전하게 한쪽을 에러로 끝냅니다. 이 기법을 SSI(Serializable Snapshot Isolation)라고 합니다.</p>
+
+    <div class="split">
+      <div class="card cmd">
+        <h4>✅ 우선한 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>하나씩 돌린 것과 같은 결과</strong></p>
+        <ul><li>write skew 까지 막아, 애플리케이션 규칙을 데이터베이스가 지켜 준다</li><li>읽기를 잠그지 않는 것은 그대로다</li></ul>
+      </div>
+      <div class="card qry">
+        <h4>🗑️ 버린 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>실패하지 않는 커밋</strong></p>
+        <ul><li>같은 행을 건드리지 않아도 에러가 날 수 있어, 모든 트랜잭션에 재시도가 필요하다</li><li>읽은 범위를 추적하는 비용이 들고, 안전하게 잡느라 실제 충돌이 아닌 경우에도 실패한다</li></ul>
+      </div>
+    </div>
+    <p><strong>이 선택에서 생긴 개념:</strong> 스냅샷 격리와 그 한계인 write skew, SSI.</p>
+  </section>
+
+  <section id="vendors">
+    <h2 class="sec"><span class="num">07</span>선택 ⑥ 옛 버전은 어디에 두고 언제 치우나</h2>
+    <p class="kicker">벤더마다 다른 마지막 갈림길</p>
+    <p>선택 ②는 옛 버전을 치우는 일을 남겼고, 선택 ③은 스냅샷이 살아 있는 동안 그 일을 미루게 만들었습니다. ④ · ⑤를 거치는 동안에도 이 비용은 그대로 쌓입니다. 벤더가 가장 크게 갈리는 곳이 이 비용을 어디에 두고 언제 치르느냐이고, 이 차이가 운영에서 겪는 증상의 차이로 이어집니다.</p>
+
+    <table>
+      <thead><tr><th>엔진</th><th>옛 버전의 자리</th><th>치우는 방식</th></tr></thead>
+      <tbody>
+        <tr><td>PostgreSQL</td><td>테이블 안. 새 버전을 옛 버전 옆에 쓴다</td><td><code>VACUUM</code> 이 더는 아무도 볼 수 없는 버전의 자리를 재사용 가능으로 표시한다</td></tr>
+        <tr><td>MySQL InnoDB</td><td>행 본체는 제자리에서 고치고 옛 값은 undo log 로 옮긴다</td><td>백그라운드 purge 가 필요 없어진 undo 기록과, 지운 행 · 보조 인덱스의 옛 항목을 지운다</td></tr>
+        <tr><td>Oracle</td><td>undo 영역</td><td>보존 기간(<code>undo_retention</code>)은 보장이 아닌 목표다. 공간이 바닥나면 기간 안의 undo 도 덮어쓰고, retention guarantee 를 켜면 덮어쓰지 않는 대신 쓰기가 실패한다</td></tr>
+      </tbody>
+    </table>
+
+    <p>옛 버전을 어디에 두느냐가 곧 무엇을 우선했느냐입니다.</p>
+
+    <table>
+      <thead><tr><th>엔진</th><th>✅ 우선한 것</th><th>🗑️ 버린 것</th></tr></thead>
+      <tbody>
+        <tr><td>PostgreSQL</td><td>옛 값을 옮기지 않아 갱신과 롤백이 단순하다. 롤백은 그 트랜잭션을 "취소됨"으로 표시하면 끝난다</td><td>테이블이 부풀고, <code>VACUUM</code> 이 갱신 속도를 따라가야 한다</td></tr>
+        <tr><td>InnoDB</td><td>행 본체를 제자리에서 고쳐 테이블이 덜 부푼다. 보조 인덱스의 옛 항목과 지운 행은 purge 전까지 남는다</td><td>옛 버전을 읽으려면 undo 를 거슬러 가야 하고, 롤백도 undo 를 되돌려 적용해야 한다</td></tr>
+        <tr><td>Oracle</td><td>옛 버전이 쓰는 공간의 상한</td><td>긴 조회가 필요한 옛 값을 잃고 실패할 수 있다</td></tr>
+      </tbody>
+    </table>
+
+    <p>그렇다면 언제 치울 수 있을까요? 한 세션이 트랜잭션을 연 채 멈춰 있는 동안, 다른 세션이 1,000행을 고쳐 커밋하고 <code>VACUUM</code> 을 돌렸습니다. 고치기 전 버전은 이제 새로 볼 트랜잭션이 없으면 <strong>죽은 버전</strong>입니다. <code>VACUUM</code> 은 열려 있는 트랜잭션 중 가장 오래된 것의 번호나 스냅샷을 기준선으로 삼고, 그 뒤에 지워진 버전은 남겨 둡니다. 멈춘 세션이 무엇을 했느냐에 따라 기준선이 달라졌습니다.</p>
+
+    <p class="code-label">실측 — 멈춘 세션의 상태별, VACUUM 뒤 남은 죽은 버전 수 (PostgreSQL, 발췌)</p>
+<pre><code>READ COMMITTED,  SELECT 만 하고 멈춤                  -> 0      <span class="c-com">-- 정리를 막지 않음</span>
+READ COMMITTED,  먼저 다른 테이블에 INSERT 하고 멈춤  -> 1000   <span class="c-com">-- 트랜잭션 ID 를 받아서</span>
+READ COMMITTED,  다른 테이블 행을 FOR UPDATE 하고 멈춤 -> 1000   <span class="c-com">-- 행 잠금도 쓰기라 ID 를 받아서</span>
+REPEATABLE READ, SELECT 만 하고 멈춤                  -> 1000   <span class="c-com">-- 스냅샷을 쥐고 있어서</span></code></pre>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰: 오래 열린 트랜잭션이 옛 버전을 붙잡는다</span>
+      <p>옛 버전은 그것을 볼 수 있는 트랜잭션이 하나라도 남아 있으면 지울 수 없습니다. PostgreSQL 에서 정리를 막는 것은 REPEATABLE READ 이상에서 스냅샷을 쥐고 있거나, 이미 쓰기(행 잠금 포함)를 한 채 열려 있거나, 한 문장이 오래 도는 트랜잭션입니다. READ COMMITTED 에서 읽기만 하고 멈춰 있는 트랜잭션은 문장이 끝날 때 스냅샷을 놓으므로 막지 않습니다. 증상은 정리 방식을 따라 갈립니다. PostgreSQL 과 InnoDB 는 치우지 못한 버전이 쌓여 테이블이나 undo 가 부풉니다. Oracle 은 공간이 모자라면 아직 필요한 undo 도 덮어쓰고, 그 옛 값이 필요한 긴 조회가 <code>ORA-01555: snapshot too old</code> 로 끝납니다.</p>
+    </div>
+    <p><strong>이 선택에서 생긴 개념:</strong> <code>VACUUM</code>, purge, undo 보존 기간, snapshot too old.</p>
+  </section>
+
+  <section id="practice">
+    <h2 class="sec"><span class="num">08</span>실무 — Django에서</h2>
+
+    <h3>1. 기본 격리 수준을 알고 시작한다</h3>
+    <p>Django 는 PostgreSQL 에서 데이터베이스와 같은 READ COMMITTED 를 씁니다. MySQL 에서는 MySQL 기본값(REPEATABLE READ)을 따르지 않고 READ COMMITTED 로 연결합니다. 문서는 그 이유로 05장의 <code>get_or_create()</code> 사례를 들어, REPEATABLE READ 에서는 데이터 손실이 가능하다고 경고합니다(의역). 바꾸려면 <code>DATABASES</code> 의 <code>OPTIONS</code> 에 적습니다.</p>
+<pre><code><span class="c-kw">from</span> django.db.backends.postgresql.psycopg_any <span class="c-kw">import</span> IsolationLevel
+
+DATABASES = {
+    <span class="c-str">"default"</span>: {
+        <span class="c-com"># ...</span>
+        <span class="c-str">"OPTIONS"</span>: {<span class="c-str">"isolation_level"</span>: IsolationLevel.SERIALIZABLE},  <span class="c-com"># PostgreSQL</span>
+    },
+}</code></pre>
+    <p>올리면 05 · 06장의 직렬화 실패가 생기므로, 재시도 코드 없이 설정만 올리면 에러만 늘어납니다.</p>
+
+    <h3>2. 갱신 분실과 write skew 는 세 가지 중 하나로 막는다</h3>
+    <p class="code-label">❌ 나쁜 예 — 읽어서 파이썬에서 계산하고 저장 (05장의 최종 80)</p>
+<pre><code><span class="c-kw">with</span> transaction.atomic():
+    account = Account.objects.get(pk=account_id)
+    account.balance -= amount          <span class="c-com"># 다른 요청이 그사이 바꾼 값을 모른다</span>
+    account.save()</code></pre>
+
+    <p class="code-label">✅ 좋은 예 ① — 계산을 데이터베이스에 맡긴다 (단일 UPDATE)</p>
+<pre><code>Account.objects.filter(pk=account_id).update(balance=F(<span class="c-str">"balance"</span>) - amount)
+<span class="c-com"># UPDATE ... SET balance = balance - %s  → 같은 시나리오에서 최종 50</span></code></pre>
+    <p><code>F("balance")</code> 는 파이썬으로 읽어 온 값이 아니라 컬럼 자체를 가리킵니다. 그래서 뺄셈이 SQL 안에서 행 잠금을 쥔 채 일어납니다. READ COMMITTED 에서는 기다린 뒤 최신 값에 적용되고, PostgreSQL REPEATABLE READ 이상에서는 스냅샷 뒤에 바뀐 행이면 직렬화 실패(40001)가 납니다(05장).</p>
+
+    <p class="code-label">✅ 좋은 예 ② — 읽을 때 잠근다 (잔액 검사처럼 계산 전에 판단이 필요할 때)</p>
+<pre><code><span class="c-kw">with</span> transaction.atomic():
+    account = Account.objects.select_for_update().get(pk=account_id)
+    <span class="c-kw">if</span> account.balance &lt; amount:
+        <span class="c-kw">raise</span> InsufficientBalance
+    account.balance -= amount
+    account.save()
+<span class="c-com"># 실측: 뒤에 온 쪽은 앞 트랜잭션이 커밋할 때까지 약 0.6초 기다린 뒤 70 을 읽어 50 을 저장</span></code></pre>
+    <p><code>select_for_update()</code> 는 05장의 잠금 읽기(<code>SELECT ... FOR UPDATE</code>)를 만듭니다. READ COMMITTED 에서는 앞 트랜잭션을 기다린 뒤 최신 값을 읽고, 커밋할 때까지 그 행을 잠급니다. PostgreSQL REPEATABLE READ 이상에서는 스냅샷 뒤에 바뀐 행이면 최신 값을 읽지 않고 직렬화 실패를 냅니다.</p>
+
+    <p>세 번째 방법은 격리 수준을 올리고 실패하면 다시 하는 것입니다. 06장 같은 여러 행에 걸친 규칙은 이 방법이 아니면 잠글 대상을 정하기 어렵습니다. 1번의 설정은 연결 전체에 걸리므로, 그렇게 올리면 이 루프가 모든 쓰기 트랜잭션에 필요해집니다. 한 곳만 올리려면 같은 DB 를 가리키는 별도 <code>DATABASES</code> 별칭에 SERIALIZABLE 을 주고, 그 트랜잭션과 안의 쿼리를 모두 <code>using</code> 으로 그 별칭에 보냅니다.</p>
+<pre><code><span class="c-kw">from</span> django.db <span class="c-kw">import</span> OperationalError, transaction
+
+<span class="c-kw">for</span> attempt <span class="c-kw">in</span> range(<span class="c-num">3</span>):
+    <span class="c-kw">try</span>:
+        <span class="c-kw">with</span> transaction.atomic():
+            leave_oncall(doctor_id)
+        <span class="c-kw">break</span>
+    <span class="c-kw">except</span> OperationalError <span class="c-kw">as</span> e:
+        cause = e.__cause__
+        code = getattr(cause, <span class="c-str">"sqlstate"</span>, <span class="c-kw">None</span>) <span class="c-kw">or</span> getattr(cause, <span class="c-str">"pgcode"</span>, <span class="c-kw">None</span>)
+        <span class="c-kw">if</span> code != <span class="c-str">"40001"</span>:   <span class="c-com"># 직렬화 실패만 재시도</span>
+            <span class="c-kw">raise</span>
+<span class="c-kw">else</span>:
+    <span class="c-kw">raise</span> RetryExhausted   <span class="c-com"># for 가 break 없이 끝나면, 곧 세 번 다 실패하면 실행</span></code></pre>
+    <p>직렬화 실패는 SQLSTATE(에러 종류를 나타내는 표준 다섯 자리 코드)가 <code>40001</code> 이고, Django 에서는 <code>OperationalError</code> 로 감싸져 올라옵니다. 원래 드라이버 예외는 <code>__cause__</code> 에 있습니다. PostgreSQL 드라이버 psycopg 3 은 이 코드를 <code>sqlstate</code> 에, psycopg2 는 <code>pgcode</code> 에 담으므로 코드에서 둘 다 봅니다. 재시도는 반드시 트랜잭션 전체를 처음부터 다시 해야 합니다. 실패한 트랜잭션 안의 값은 이미 낡았기 때문입니다. 그래서 이 루프는 바깥에 다른 atomic 이 없을 때만 맞습니다. <code>ATOMIC_REQUESTS</code>(요청 하나를 트랜잭션 하나로 감싸는 설정)를 켰다면 안쪽 atomic 은 저장점이 되어 처음부터 다시 하지 못합니다.</p>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 흔한 실수: atomic 안에서 오래 머문다</span>
+      <p><code>transaction.atomic()</code> 안에서 외부 API 를 부르거나 대용량 파일을 처리하면, 그동안 트랜잭션이 열려 있습니다. <code>select_for_update</code> 를 썼다면 다른 요청이 그만큼 줄을 서고, 행 잠금도 쓰기로 쳐서 07장처럼 옛 버전 정리까지 밀립니다. 다른 쓰기를 했거나 REPEATABLE READ 이상이어도 밀립니다. 트랜잭션 안에는 데이터베이스 작업만 두고 나머지는 밖으로 뺍니다.</p>
+    </div>
+
+    <h3>3. 읽기 위주인가, 쓰기 위주인가</h3>
+    <p>00장의 짧은 답대로 MVCC 의 덕은 읽기 쪽에 갑니다. 그래서 고르는 것이 달라집니다. 조회가 대부분이면 기본 READ COMMITTED 와 보통 SELECT 로 충분하고, 여러 테이블을 한 시점으로 맞춰야 하는 집계만 REPEATABLE READ 로 묶습니다.</p>
+    <p>조회수 · 재고처럼 같은 행에 쓰기가 몰리면 격리 수준보다 쓰는 방식이 중요합니다. 그 행은 05장처럼 한 줄로 처리되므로 <code>F()</code> 한 문장 UPDATE 나 짧은 <code>select_for_update</code> 로 줄을 짧게 합니다. 갱신마다 옛 버전도 생기므로 PostgreSQL 은 <code>VACUUM</code> 이, InnoDB 는 purge 가 그 속도를 따라가야 합니다(PostgreSQL 은 인덱스 컬럼을 고치지 않는 갱신이면 페이지에 다시 접근할 때 일부를 미리 정리합니다). 오래 도는 집계 조회는 이 정리를 붙잡으므로 그런 데이터와 떼어 둡니다(07장).</p>
+  </section>
+
+  <!-- ============ 치트시트 ============ -->
+  <section id="cheatsheet">
+    <h2 class="sec"><span class="num">09</span>한 장 요약 치트시트</h2>
+    <div class="tldr">
+      <span class="tag">트랜잭션은 어떻게 서로 방해하지 않고 읽고 쓸까?</span>
+      <p><strong>행의 옛 버전을 남겨 두고, 읽는 쪽에게는 자기 스냅샷 시점의 버전을 보여 주기 때문이다.</strong> 그래서 보통 읽기는 잠금이 필요 없고 쓰기를 기다리지 않는다. 하지만 같은 행을 고치는 쓰기끼리는 여전히 행 잠금으로 줄을 서고, 부딪히면 엔진에 따라 기다렸다가 최신 값에 쓰거나(InnoDB, PostgreSQL READ COMMITTED) 에러를 내고 재시도를 요구한다(PostgreSQL REPEATABLE READ · SERIALIZABLE). 벤더 차이는 기본 격리 수준, 이 쓰기 충돌의 처리, 옛 버전을 어디에 두고 언제 치우는지에서 난다.</p>
+    </div>
+    <div class="tldr">
+      <span class="tag">읽기 위주와 쓰기 위주는 왜 다르게 고르나?</span>
+      <p><strong>MVCC 가 없앤 기다림은 읽기와 쓰기 사이뿐이기 때문이다.</strong> 조회가 대부분이면 기본 READ COMMITTED 와 보통 SELECT 로 충분하다. 같은 행에 쓰기가 몰리면 그 쓰기는 여전히 줄을 서고 옛 버전 정리 비용만 늘어나므로, 격리 수준보다 <code>F()</code> · 짧은 잠금 같은 쓰는 방식과 긴 집계 조회를 떼어 두는 배치를 먼저 고른다.</p>
+    </div>
+
+    <table>
+      <thead><tr><th>단계</th><th>우선한 것 / 버린 것</th><th>생긴 개념</th></tr></thead>
+      <tbody>
+        <tr><td>① 잠금으로 줄 세우기</td><td>단순한 정확성 / 읽기와 쓰기 사이의 동시성</td><td>공유 · 배타 잠금, 2단계 잠금, 범위 잠금, 데드락</td></tr>
+        <tr><td>② 옛 버전 남기기</td><td>읽기와 쓰기 사이의 동시성 / 값은 하나라는 단순함</td><td>행 버전, <code>xmin</code> · <code>xmax</code>, 가시성 규칙, undo log</td></tr>
+        <tr><td>③ 기준 시점 정하기</td><td>일관된 읽기 / 최신 값과의 일치</td><td>스냅샷, 문장 단위 · 트랜잭션 단위 스냅샷</td></tr>
+        <tr><td>④ 쓰기는 다시 잠그기</td><td>같은 행의 다음 버전은 하나 / 쓰기 동시성과 단순한 코드</td><td>갱신 분실, 직렬화 실패, 잠금 읽기</td></tr>
+        <tr><td>⑤ 직렬 실행 보장</td><td>하나씩 돌린 결과 / 실패하지 않는 커밋</td><td>write skew, SSI</td></tr>
+        <tr><td>⑥ 옛 버전의 자리</td><td>PostgreSQL 단순한 갱신 · 롤백 / 부푸는 테이블, InnoDB 덜 부푸는 테이블 / undo 를 거슬러 읽기, Oracle 공간 상한 / 긴 조회 실패</td><td><code>VACUUM</code>, purge, snapshot too old</td></tr>
+      </tbody>
+    </table>
+
+    <table>
+      <thead><tr><th>PostgreSQL 격리 수준</th><th>막는 것</th><th>남는 것</th></tr></thead>
+      <tbody>
+        <tr><td><code>READ COMMITTED</code></td><td>더티 리드</td><td>반복 불가능한 읽기, 팬텀, 갱신 분실, write skew</td></tr>
+        <tr><td><code>REPEATABLE READ</code></td><td>위에 더해 반복 불가능한 읽기, 팬텀, 같은 행의 갱신 분실(에러로)</td><td>write skew 같은 직렬화 이상</td></tr>
+        <tr><td><code>SERIALIZABLE</code></td><td>위에 더해 write skew</td><td>없음. 대신 어느 트랜잭션이든 재시도가 필요하다</td></tr>
+      </tbody>
+    </table>
+    <p>READ UNCOMMITTED 를 고르면 PostgreSQL 은 READ COMMITTED 와 같게 동작합니다.</p>
+
+    <table>
+      <thead><tr><th>기억할 것</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>같은 SELECT 가 두 번 다르다</td><td>READ COMMITTED 에서는 정상. 문장마다 스냅샷을 새로 잡는다</td></tr>
+        <tr><td>Django 의 격리 수준</td><td>PostgreSQL · MySQL 모두 READ COMMITTED 로 연결한다</td></tr>
+        <tr><td>갱신 분실 막기</td><td><code>F()</code> 로 한 문장 UPDATE, <code>select_for_update()</code>, 또는 격리 수준을 올리고 재시도</td></tr>
+        <tr><td>재시도 대상</td><td>SQLSTATE <code>40001</code>. 바깥 atomic 이 없는 곳에서 트랜잭션 전체를 처음부터 다시 한다</td></tr>
+        <tr><td>긴 트랜잭션</td><td>스냅샷을 쥐었거나 이미 쓰기(행 잠금 포함)를 한 채 열려 있으면 옛 버전 정리를 막는다. atomic 안에 외부 호출을 두지 않는다</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="wrap">
+  <h3>더 읽어보기 (출처)</h3>
+  <ul>
+    <li>PostgreSQL 문서 — <a href="https://www.postgresql.org/docs/current/mvcc-intro.html">Introduction (MVCC)</a> (읽기와 쓰기가 서로 막지 않는다는 보장)</li>
+    <li>PostgreSQL 문서 — <a href="https://www.postgresql.org/docs/current/transaction-iso.html">Transaction Isolation</a> (기본 READ COMMITTED, 스냅샷을 잡는 시점, 최신 버전 재평가, <code>could not serialize access</code>, 수준별로 막는 현상, 재시도 필요)</li>
+    <li>PostgreSQL 문서 — <a href="https://www.postgresql.org/docs/current/transaction-id.html">Transactions and Identifiers</a> (트랜잭션 ID 는 처음 쓰기를 할 때 붙는다)</li>
+    <li>MySQL 8.4 문서 — <a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-consistent-read.html">Consistent Nonlocking Reads</a> (첫 일관된 읽기의 스냅샷, 잠그지 않는 읽기, DML 은 최신 커밋을 대상으로 할 수 있음)</li>
+    <li>MySQL 8.4 문서 — <a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-transaction-isolation-levels.html">Transaction Isolation Levels</a> (InnoDB 기본 REPEATABLE READ) · <a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html">InnoDB Locking</a> (next-key lock 범위 잠금)</li>
+    <li>Microsoft Learn — <a href="https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-transaction-locking-and-row-versioning-guide">Transaction locking and row versioning guide</a> (직접 설치한 SQL Server 의 기본은 잠금 방식 READ COMMITTED, 공유 잠금은 읽기가 끝나면 바로 풀림, Azure SQL Database 는 READ_COMMITTED_SNAPSHOT 이 기본)</li>
+    <li>Oracle 19c 문서 — <a href="https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-undo.html">Managing Undo</a> (<code>UNDO_RETENTION</code> 은 보장이 아닌 목표, 공간이 바닥나면 기간 안의 undo 도 덮어씀, retention guarantee 를 켜면 대신 쓰기가 실패) · <a href="https://docs.oracle.com/error-help/db/ora-01555/">ORA-01555</a> (필요한 undo 가 덮어써져 긴 조회가 실패)</li>
+    <li>Django 문서 — <a href="https://docs.djangoproject.com/en/5.2/ref/databases/">Databases</a> (PostgreSQL · MySQL 격리 수준 기본값과 <code>OPTIONS</code> 설정, MySQL REPEATABLE READ 에서 <code>get_or_create()</code> 가 <code>IntegrityError</code> 를 내는 사례)</li>
+    <li>Django 문서 — <a href="https://docs.djangoproject.com/en/5.2/topics/db/transactions/">Database transactions</a> (가장 바깥 atomic 만 트랜잭션, 안쪽은 저장점, <code>ATOMIC_REQUESTS</code>) · <a href="https://docs.djangoproject.com/en/5.2/ref/models/querysets/#select-for-update">select_for_update()</a> · <a href="https://docs.djangoproject.com/en/5.2/ref/models/expressions/#avoiding-race-conditions-using-f">F() 로 경쟁 상태 피하기</a> (실무 장의 방법들)</li>
+    <li>Ports · Grittner — <a href="https://arxiv.org/abs/1208.4179">Serializable Snapshot Isolation in PostgreSQL</a> (VLDB 2012, PostgreSQL SERIALIZABLE 의 SSI 구현, 위험한 모양을 보수적으로 잡는 방식)</li>
+    <li>Berenson 외 — <a href="https://arxiv.org/abs/cs/0701157">A Critique of ANSI SQL Isolation Levels</a> (SIGMOD 1995, 표준의 현상 목록, 갱신 분실, 스냅샷 격리 정의와 write skew)</li>
+    <li>Reed — <a href="https://web.mit.edu/saltzer/www/publications/TRs+TMs/CSR/MIT-LCS-TR-205.pdf">Naming and Synchronization in a Decentralized Computer System</a> (MIT/LCS/TR-205, 1978, 여러 버전으로 동시성을 다루는 아이디어를 처음 정리한 박사 논문)</li>
+    <li>실측 환경 — PostgreSQL 14.20 (Homebrew, macOS arm64) 로컬 테스트용 DB 서버, Python 3 · psycopg2 2.9 로 두 세션을 엇갈려 실행. VACUUM 실측은 autovacuum 을 끈 상태이고, 행 잠금 읽기 행은 같은 방법으로 다시 잰 값. MySQL 은 직접 돌리지 않았다</li>
+  </ul>
+  <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+</footer>
+
+<!-- TOC 현재 위치 하이라이트 -->
+<script>
+  const links = [...document.querySelectorAll('nav.toc a')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      const a = map.get(e.target.id);
+      if (a && e.isIntersecting) {
+        links.forEach(l => { l.style.color = ''; l.style.fontWeight = ''; });
+        a.style.color = 'var(--accent)';
+        a.style.fontWeight = '700';
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>

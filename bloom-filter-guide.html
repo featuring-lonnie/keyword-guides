@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
+<title>Bloom Filter — "없다"만 확실한 자료구조가 쓸모 있는 이유 · 주니어 개발자를 위한 안내서</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e1116;
+    --bg-soft: #161b22;
+    --bg-card: #1a2029;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa7b4;
+    --text-faint: #6b7683;
+    --accent: #58a6ff;
+    --accent-2: #7ee787;
+    --cmd: #ff9e64;
+    --qry: #79c0ff;
+    --warn: #f0b429;
+    --danger: #f47067;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans: "Inter", "Noto Sans KR", -apple-system, BlinkMacSystemFont, sans-serif;
+    --maxw: 860px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #ffffff;
+      --bg-soft: #f6f8fa;
+      --bg-card: #ffffff;
+      --border: #d8dee4;
+      --text: #1f2328;
+      --text-dim: #57606a;
+      --text-faint: #8c959f;
+      --accent: #0969da;
+      --accent-2: #1a7f37;
+      --cmd: #bc4c00;
+      --qry: #0550ae;
+      --warn: #9a6700;
+      --danger: #cf222e;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.7;
+    font-size: 17px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 22px; }
+
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(1200px 400px at 50% -50%, rgba(88,166,255,0.10), transparent);
+  }
+  .eyebrow {
+    font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin-bottom: 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 5vw, 46px); line-height: 1.15; margin: 0 0 18px;
+    font-weight: 800; letter-spacing: -0.02em;
+  }
+  .lede { font-size: 19px; color: var(--text-dim); max-width: 680px; margin: 0; }
+  .quote-hero {
+    margin: 22px 0 0; padding: 12px 18px; border-left: 3px solid var(--accent);
+    background: var(--bg-soft); border-radius: 0 8px 8px 0; font-size: 16px; color: var(--text-dim);
+  }
+  .quote-hero strong { color: var(--text); }
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .pill {
+    font-size: 13px; padding: 6px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft); color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  nav.toc {
+    margin: 34px 0; padding: 22px 24px; background: var(--bg-soft);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  nav.toc h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-faint); margin: 0 0 14px; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 34px; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+  nav.toc li { margin: 5px 0; break-inside: avoid; }
+  nav.toc a { color: var(--text); text-decoration: none; font-size: 15px; }
+  nav.toc a:hover { color: var(--accent); }
+
+  main { padding: 10px 0 80px; }
+  section { padding: 34px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+  h2.sec {
+    font-size: clamp(24px, 4vw, 32px); font-weight: 800; letter-spacing: -0.02em;
+    margin: 0 0 6px; scroll-margin-top: 20px;
+  }
+  h2.sec .num {
+    display: inline-block; font-family: var(--mono); font-size: 15px; color: var(--accent);
+    background: rgba(88,166,255,0.12); border-radius: 8px; padding: 2px 10px; margin-right: 12px;
+    vertical-align: middle; font-weight: 600;
+  }
+  h3 { font-size: 20px; font-weight: 700; margin: 30px 0 10px; letter-spacing: -0.01em; }
+  h4 { font-size: 16px; font-weight: 700; margin: 22px 0 8px; color: var(--text); }
+  p { margin: 12px 0; }
+  strong { color: var(--text); font-weight: 700; }
+  a { color: var(--accent); }
+  ul, ol { padding-left: 22px; }
+  li { margin: 7px 0; }
+
+  code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    padding: 1.5px 6px; border-radius: 6px; color: var(--accent-2);
+  }
+  pre {
+    background: #0b0e13; border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; margin: 16px 0; position: relative;
+    font-size: 14px; line-height: 1.6;
+  }
+  @media (prefers-color-scheme: light) { pre { background: #f6f8fa; } }
+  pre code { background: none; border: none; padding: 0; color: var(--text); font-size: 14px; }
+  .c-kw { color: #ff7b72; } .c-fn { color: #d2a8ff; } .c-str { color: #a5d6ff; }
+  .c-com { color: var(--text-faint); font-style: italic; } .c-num { color: #79c0ff; }
+  .c-ok { color: var(--accent-2); } .c-bad { color: var(--danger); }
+  @media (prefers-color-scheme: light) {
+    .c-kw { color: #cf222e; } .c-fn { color: #8250df; } .c-str { color: #0a3069; } .c-num { color: #0550ae; }
+  }
+  .code-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-faint); margin: 18px 0 -8px;
+  }
+
+  .box {
+    margin: 20px 0; padding: 16px 20px; border-radius: 12px;
+    border: 1px solid var(--border); border-left-width: 4px; background: var(--bg-card);
+  }
+  .box .tag { font-weight: 700; font-size: 14px; display: block; margin-bottom: 4px; }
+  .box p:first-of-type { margin-top: 4px; }
+  .box p:last-child { margin-bottom: 0; }
+  .box.tip { border-left-color: var(--accent-2); }
+  .box.tip .tag { color: var(--accent-2); }
+  .box.warn { border-left-color: var(--warn); }
+  .box.warn .tag { color: var(--warn); }
+  .box.danger { border-left-color: var(--danger); }
+  .box.danger .tag { color: var(--danger); }
+  .box.note { border-left-color: var(--accent); }
+  .box.note .tag { color: var(--accent); }
+  .box.analogy { border-left-color: #d2a8ff; }
+  .box.analogy .tag { color: #d2a8ff; }
+
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 22px 0; }
+  @media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+  .split .card { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--bg-card); }
+  .split .card.cmd { border-top: 3px solid var(--cmd); }
+  .split .card.qry { border-top: 3px solid var(--qry); }
+  .split .card h4 { margin-top: 0; font-size: 18px; }
+  .split .card.cmd h4 { color: var(--cmd); }
+  .split .card.qry h4 { color: var(--qry); }
+  .split .card ul { padding-left: 18px; margin: 8px 0 0; font-size: 15px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 15px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--text-dim); font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  tr:last-child td { border-bottom: none; }
+
+  .diagram {
+    font-family: var(--mono); font-size: 13px; line-height: 1.5; white-space: pre;
+    background: var(--bg-soft); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; overflow-x: auto; color: var(--text-dim); margin: 18px 0;
+  }
+  .kicker { color: var(--text-dim); font-size: 15px; margin: 2px 0 18px; }
+
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 22px 0; }
+  @media (max-width: 640px) { .stat-row { grid-template-columns: 1fr; } }
+  .stat {
+    border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: var(--bg-card);
+  }
+  .stat .big { font-size: 26px; font-weight: 800; color: var(--accent); letter-spacing: -0.02em; }
+  .stat .lbl { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+  .ladder { counter-reset: step; margin: 20px 0; padding: 0; list-style: none; }
+  .ladder li {
+    position: relative; padding: 14px 18px 14px 60px; margin: 12px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .ladder li::before {
+    counter-increment: step; content: counter(step);
+    position: absolute; left: 16px; top: 14px; width: 30px; height: 30px;
+    display: grid; place-items: center; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 15px;
+  }
+  .ladder li strong { display: block; margin-bottom: 3px; }
+
+  .timeline { margin: 20px 0; padding: 0; list-style: none; }
+  .timeline li {
+    position: relative; padding: 12px 18px 12px 110px; margin: 10px 0;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card);
+  }
+  .timeline li .yr {
+    position: absolute; left: 16px; top: 14px;
+    font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--accent);
+  }
+  .timeline li strong { display: block; margin-bottom: 2px; }
+  .timeline li span.desc { font-size: 15px; color: var(--text-dim); }
+  @media (max-width: 640px) {
+    .timeline li { padding-left: 18px; padding-top: 38px; }
+  }
+
+  footer { padding: 40px 0 60px; color: var(--text-faint); font-size: 14px; }
+  footer h3 { color: var(--text-dim); font-size: 15px; }
+  footer a { color: var(--text-dim); }
+  footer ul { padding-left: 20px; }
+
+  .tldr {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(126,231,135,0.06));
+    border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; margin: 24px 0;
+  }
+  .tldr .tag { color: var(--accent); font-weight: 800; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; }
+  .tldr p { margin: 8px 0 0; font-size: 16px; }
+
+  /* ===== 모바일 대응 (mobile) ===== */
+  html { -webkit-text-size-adjust: 100%; }
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 18px; }
+    header.hero { padding: 48px 0 34px; }
+    h1 { font-size: clamp(25px, 7.2vw, 34px); }
+    .lede { font-size: 17px; }
+    .quote-hero { font-size: 15px; padding: 11px 15px; }
+    .pill { font-size: 12px; padding: 5px 11px; }
+    main { padding: 6px 0 56px; }
+    section { padding: 26px 0; }
+    h2.sec { font-size: clamp(21px, 5.6vw, 26px); }
+    h2.sec .num { font-size: 13px; padding: 2px 8px; margin-right: 9px; }
+    h3 { font-size: 18px; }
+
+    /* 긴 식별자(innodb_flush_log_at_trx_commit 등)가 표·문단을 밀어내지 않도록 */
+    /* 긴 토큰은 code 안에만 있으므로 줄바꿈 허용은 code로 한정한다.
+       셀 전체에 걸면 'PostgreSQL'이 글자 단위로 쪼개진다. */
+    code { overflow-wrap: anywhere; }
+    th, td { padding: 9px 10px; font-size: 14px; }
+    th { font-size: 12px; }
+    td code, th code { font-size: 0.82em; }
+
+    pre { padding: 14px 15px; }
+    pre, pre code { font-size: 13px; }
+    .diagram { font-size: 11px; padding: 15px; line-height: 1.45; }
+    .box { padding: 14px 16px; }
+    .tldr { padding: 17px 18px; }
+    .tldr p { font-size: 15px; }
+    .stat .big { font-size: 23px; }
+    .ladder li { padding: 13px 15px 13px 52px; }
+    .ladder li::before { left: 13px; top: 13px; width: 27px; height: 27px; font-size: 14px; }
+    nav.toc { padding: 18px 18px; margin: 26px 0; }
+    footer { padding: 30px 0 48px; }
+
+    /* index.html 카드 */
+    a.card { padding: 17px 18px; }
+    a.card h3 { font-size: 19px; }
+    a.card .date { margin-left: 0; width: 100%; order: 3; }
+    a.card .desc, a.card .quote { font-size: 14px; }
+  }
+
+  /* ===== 목록 back-link ===== */
+  .backlink {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14px; font-weight: 500; text-decoration: none;
+    color: var(--text-dim); margin-bottom: 20px;
+    padding: 5px 12px 5px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-soft);
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .backlink:hover { color: var(--accent); border-color: var(--accent); }
+  footer .backlink { margin: 26px 0 0; }
+</style>
+</head>
+<body>
+
+<!-- ============ HERO ============ -->
+<header class="hero">
+  <div class="wrap">
+    <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+    <div class="eyebrow">금주의 키워드 · 주니어 개발자용</div>
+    <h1>Bloom Filter<br>"없다"만 확실한 자료구조가 쓸모 있는 이유</h1>
+    <p class="lede">회원가입 화면에서 아이디를 한 글자 칠 때마다 "이미 쓰는 아이디인가"를 DB에 묻는다고 해 봅시다. 답은 대부분 "없다"인데, 그 "없다"를 듣기 위해 매번 네트워크와 디스크를 오갑니다. 원소 하나에 1바이트 남짓만 쓰고 "없다"는 즉시 틀림없이 말해 주지만 "있다"는 가끔 틀리는 자료구조가 있다면, 쓸 만할까요?</p>
+    <p class="quote-hero">💬 <strong>"'없다'는 건 확실하게 답변하지만, '있다'는 건 확실하지 않음. 왜 이런 자료구조가 유용할까?"</strong></p>
+    <div class="meta-row">
+      <span class="pill">☕ 읽는 데 ~40분</span>
+      <span class="pill">🧭 우선한 것 · 버린 것 · 생긴 개념</span>
+      <span class="pill">🔬 파이썬으로 직접 구현해 잼</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ TOC ============ -->
+<div class="wrap">
+  <nav class="toc">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#intro">"있다"가 틀려도 되는 자리</a></li>
+      <li><a href="#how">비트 배열과 해시 k개</a></li>
+      <li><a href="#choice1">선택 ① 원소를 저장하지 않는다</a></li>
+      <li><a href="#dial">오차는 고르는 값이다</a></li>
+      <li><a href="#debts">선택 ①이 남긴 두 숙제</a></li>
+      <li><a href="#choice2">선택 ② 비트를 카운터로 바꾼다</a></li>
+      <li><a href="#choice3">선택 ③ 다 차면 하나 더 쌓는다</a></li>
+      <li><a href="#choice4">선택 ④ 지우지 않고 다시 만든다</a></li>
+      <li><a href="#practice">실무 — 언제 쓰고 언제 쓰지 않나</a></li>
+      <li><a href="#cheatsheet">한 장 요약 치트시트</a></li>
+    </ol>
+  </nav>
+</div>
+
+<main class="wrap">
+
+  <!-- ============ 00 ============ -->
+  <section id="intro">
+    <h2 class="sec"><span class="num">00</span>"있다"가 틀려도 되는 자리</h2>
+    <p class="kicker">"가끔 틀리면 못 쓴다"는 전제부터 짚기</p>
+
+    <p>질문 속 전제부터 봅시다. "있다"가 불확실하면 쓸모없다는 생각은, 블룸 필터가 <strong>혼자서 최종 답을 낸다</strong>고 가정할 때만 맞습니다. 실제로는 혼자 쓰지 않습니다. 블룸 필터는 정확하지만 비싼 확인(DB 조회, 디스크 읽기, 다른 서버 호출) <strong>앞에 세우는 거름망</strong>입니다.</p>
+
+    <div class="diagram">질문: "x 있어?"
+      │
+      ▼
+┌───────────────────────┐
+│ 블룸 필터 (메모리, 빠름) │
+└───────────────────────┘
+      │
+      ├── "없다" ──────▶ 바로 "없다"고 답한다. 비싼 확인은 건너뛴다
+      │                 (이 답은 틀리지 않는다)
+      │
+      └── "있을 수도" ─▶ ┌──────────────────────┐
+                         │ 진짜 확인 (DB·디스크)  │
+                         └──────────────────────┘
+                              ├─▶ 정말 있다
+                              └─▶ 사실 없다  ← 헛걸음 한 번
+                                  (없는데 "있다"고 답한 것, 거짓양성)</div>
+
+    <p>"없다"는 틀리지 않으므로 그 답이 나온 질문은 비싼 확인을 통째로 건너뜁니다. "있을 수도"는 어차피 진짜 확인으로 넘어가니 최종 답은 틀리지 않고, 블룸 필터의 "있다"가 틀렸을 때 치르는 대가는 <strong>헛걸음 한 번</strong>뿐입니다. 짧은 답은 이렇습니다.</p>
+    <ol class="ladder">
+      <li><strong>답이 대부분 "없다"인 곳이 많아서</strong>없는 키 조회, 처음 보는 URL, "이 파일에는 이 키가 없다". 이런 곳에서는 비싼 확인의 대부분이 사라진다.</li>
+      <li><strong>"있다"가 틀리는 비율은 고를 수 있어서</strong>메모리를 조금 더 쓰면 그 비율을 원하는 만큼 낮출 수 있다(03장).</li>
+      <li><strong>원소를 저장하지 않아 작아서</strong>원소 하나에 1바이트 남짓이라, 그냥 <code>set</code>이나 캐시에 다 담기엔 큰 집합도 메모리나 여러 서버가 함께 보는 Redis에 통째로 올릴 수 있다(02장).</li>
+    </ol>
+
+    <p>블룸 필터는 몇 번의 선택을 거쳐 지금 모습이 됐습니다. 첫 선택은 메모리를 얻으려고 "있다"의 확실성을 버렸습니다. 그 대가로 지울 수 없고 크기를 늘릴 수 없다는 숙제가 남았고, 뒤의 선택들은 그 숙제를 서로 다른 방법으로 풀었습니다.</p>
+
+    <div class="box note">
+      <span class="tag">이 문서가 답하는 것</span>
+      <p>① 왜 "없다"는 틀리지 않고 "있다"는 틀릴 수 있나 ② 틀리는 비율은 무엇으로 정해지고 어떻게 고르나 ③ 지울 수 없고 커질 수 없다는 약점을 어떻게 메웠나 ④ Django·PostgreSQL·Redis에서 어디에 쓰고 어디에 쓰면 안 되나. 다 읽고 나면 "여기에 블룸 필터를 두자"는 말을 들었을 때 <strong>틀려도 되는 쪽이 어느 쪽인지</strong>부터 물을 수 있게 됩니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 01 ============ -->
+  <section id="how">
+    <h2 class="sec"><span class="num">01</span>비트 배열과 해시 k개</h2>
+    <p class="kicker">넣기와 확인하기, 그리고 거짓양성이 생기는 자리</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 해시 함수</span>
+      <p><strong>해시 함수</strong>는 입력을 받아 숫자 하나를 내는 함수입니다. 같은 입력에는 항상 같은 숫자를, 다른 입력에는 고르게 흩어진 숫자를 냅니다. 파이썬의 <code>dict</code>와 <code>set</code>도 키의 해시로 저장 위치를 정합니다. 해시가 내는 숫자는 아주 크므로, 배열 길이 m으로 나눈 나머지(<code>% m</code>)를 배열 위치로 씁니다.</p>
+    </div>
+
+    <p>블룸 필터는 두 가지로 이루어집니다. 처음에 전부 0인 <strong>비트 m개짜리 배열</strong>과, 서로 다른 <strong>해시 함수 k개</strong>입니다. 하는 일은 "x가 이 집합에 들어 있나?"라는 질문 하나에 답하는 것입니다. 이런 질문을 <strong>소속 질의(membership query)</strong>라고 합니다.</p>
+    <ul>
+      <li><strong>넣기</strong>: x를 해시 k개에 넣어 숫자 k개를 얻고, 각각 <code>% m</code>으로 배열 위치를 구해 그 자리의 비트를 전부 1로 켠다.</li>
+      <li><strong>확인하기</strong>: 같은 방법으로 위치 k개를 구하고 그 비트들을 본다. 하나라도 0이면 "없다", 전부 1이면 "있을 수도 있다".</li>
+    </ul>
+
+    <p>비트 16개, 해시 3개로 직접 해 보겠습니다.</p>
+    <div class="diagram">위치      0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+처음      0 0 0 0 0 0 0 0 0 0 0  0  0  0  0  0
+
+넣기 "apple" → 위치 1, 5, 11
+넣기 "kiwi"  → 위치 3, 5, 14      (5는 이미 1, 그대로 1)
+결과      0 1 0 1 0 1 0 0 0 0 0  1  0  0  1  0
+
+확인 "grape" → 위치 1, 9, 14   → 9가 0       → "없다"   (확실)
+확인 "apple" → 위치 1, 5, 11   → 전부 1      → "있을 수도" (실제로 있음)
+확인 "melon" → 위치 1, 3, 14   → 전부 1      → "있을 수도" (넣은 적 없음!)
+                ↑ apple 이 켠 1, kiwi 가 켠 3·14 가 우연히 겹쳤다</div>
+
+    <h3>왜 "없다"는 틀리지 않나</h3>
+    <p>넣을 때 비트를 1로 <strong>켜기만 하고, 끄는 동작이 없기</strong> 때문입니다. 한 번 넣은 원소의 k개 비트는 계속 1로 남습니다. 그러니 넣은 원소를 확인하면 0을 볼 일이 없고, 넣은 원소에 "없다"고 답하는 일도 생기지 않습니다. 0이 하나라도 보였다면 그 원소는 넣은 적이 없다는 뜻입니다.</p>
+    <p>이 보장은 <strong>필터에 넣은 원소</strong>에 대한 것입니다. 넣어야 할 원소를 빠뜨리면 필터는 그 원소를 모르므로 "없다"고 답합니다. 필터의 오류는 아니지만 결과는 같으니, 쓰는 쪽에서 막아야 합니다(08장).</p>
+
+    <h3>왜 "있다"는 틀릴 수 있나</h3>
+    <p>비트에는 <strong>누가 켰는지 적혀 있지 않습니다.</strong> 위의 위치 5가 apple 때문에 1인지 kiwi 때문에 1인지 배열만 봐서는 모릅니다. 그래서 넣은 적 없는 melon의 세 자리를 다른 원소들이 우연히 다 켜 두었으면, 필터는 그 차이를 구별하지 못하고 "있을 수도"라고 답합니다.</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: 거짓양성과 거짓음성</span>
+      <p><strong>거짓양성(false positive)</strong>은 없는데 있다고 답하는 오류이고, <strong>거짓음성(false negative)</strong>은 있는데 없다고 답하는 오류입니다. 넣은 원소에 대해서 블룸 필터에는 거짓양성만 있고 거짓음성은 없습니다. 위의 melon이 거짓양성입니다.</p>
+    </div>
+
+    <div class="box analogy">
+      <span class="tag">🔒 비유</span>
+      <p>사물함이 줄지어 있는 복도를 떠올려 봅시다. 회원은 가입할 때 자기 이름으로 정해지는 사물함 세 칸에 스티커를 붙입니다. 누군가 회원인지 보려면 그 이름의 세 칸만 봅니다. 한 칸이라도 스티커가 없으면 그 사람은 가입한 적이 없습니다. 세 칸 다 붙어 있어도 다른 회원들이 붙인 스티커가 우연히 겹쳤을 수 있습니다.</p>
+    </div>
+
+    <p>파이썬으로 쓰면 20줄 남짓입니다. 이 문서의 실측은 모두 아래 구현으로 돌렸습니다.</p>
+    <p class="code-label">직접 구현 — bytearray 하나, 해시 하나를 반으로 갈라 두 값으로</p>
+<pre><code><span class="c-kw">import</span> hashlib
+
+<span class="c-kw">class</span> <span class="c-fn">BloomFilter</span>:
+    <span class="c-kw">def</span> <span class="c-fn">__init__</span>(self, m_bits, k):
+        self.m, self.k = m_bits, k
+        self.bits = bytearray((m_bits + <span class="c-num">7</span>) // <span class="c-num">8</span>)   <span class="c-com"># 비트 m개 = 바이트 m/8개</span>
+
+    <span class="c-kw">def</span> <span class="c-fn">_positions</span>(self, item):
+        d = hashlib.blake2b(item.encode(), digest_size=<span class="c-num">16</span>).digest()
+        h1 = int.from_bytes(d[:<span class="c-num">8</span>], <span class="c-str">"little"</span>)
+        h2 = int.from_bytes(d[<span class="c-num">8</span>:], <span class="c-str">"little"</span>) | <span class="c-num">1</span>   <span class="c-com"># 0 이면 위치 k개가 전부 같아진다</span>
+        <span class="c-com"># 두 값을 섞어 위치 k개를 만든다: h1 + i*h2</span>
+        <span class="c-kw">return</span> [(h1 + i * h2) % self.m <span class="c-kw">for</span> i <span class="c-kw">in</span> range(self.k)]
+
+    <span class="c-kw">def</span> <span class="c-fn">add</span>(self, item):
+        <span class="c-kw">for</span> p <span class="c-kw">in</span> self._positions(item):
+            self.bits[p &gt;&gt; <span class="c-num">3</span>] |= <span class="c-num">1</span> &lt;&lt; (p &amp; <span class="c-num">7</span>)        <span class="c-com"># 켜기만 한다. 끄는 코드는 없다</span>
+
+    <span class="c-kw">def</span> <span class="c-fn">__contains__</span>(self, item):
+        <span class="c-kw">return</span> all(self.bits[p &gt;&gt; <span class="c-num">3</span>] &amp; (<span class="c-num">1</span> &lt;&lt; (p &amp; <span class="c-num">7</span>))
+                   <span class="c-kw">for</span> p <span class="c-kw">in</span> self._positions(item))</code></pre>
+    <p>비트 연산이 낯설다면 이렇게 읽으면 됩니다. 비트 p는 바이트 배열 안에서 <code>p &gt;&gt; 3</code>(= <code>p // 8</code>) 번째 바이트의 <code>p &amp; 7</code>(= <code>p % 8</code>) 번째 비트입니다. <code>1 &lt;&lt; (p &amp; 7)</code>은 그 비트 하나만 1인 값이고, <code>|=</code>로 그 비트를 켜고 <code>&amp;</code>로 켜져 있는지 봅니다. <code>__contains__</code>는 파이썬의 <code>in</code> 연산자가 부르는 메서드라서 <code>"x" in bf</code>로 확인할 수 있습니다.</p>
+    <p>해시 함수를 정말 k개 따로 두지 않고, 해시 값 두 개를 <code>h1 + i*h2</code>로 섞어 k개 위치를 만들었습니다. <code>h2</code>에 <code>| 1</code>을 하는 것은 맨 아래 비트를 켜서 <code>h2</code>가 0이 되지 않게 하려는 것입니다. 0이면 <code>i</code>가 바뀌어도 위치가 전부 <code>h1 % m</code> 하나로 같아집니다. 이렇게 해도 거짓양성률이 사실상 같다는 것이 알려져 있어 실제 구현에서 흔히 씁니다.</p>
+  </section>
+
+  <!-- ============ 02 ============ -->
+  <section id="choice1">
+    <h2 class="sec"><span class="num">02</span>선택 ① 원소를 저장하지 않는다</h2>
+    <p class="kicker">1970년, 메모리에 들어가게 하려고 "가끔 틀림"을 허용하다</p>
+
+    <p>Burton Bloom은 1970년 논문에서 자동 줄 나눔(하이픈) 프로그램을 예로 들었습니다. 영어 단어 50만 개 가운데 대부분은 간단한 규칙으로 줄을 나눌 수 있고, 5만 개만 디스크에 있는 사전을 찾아봐야 한다고 가정합니다. 단어마다 디스크를 보면 너무 느리니, "이 단어가 그 5만 개에 드는가"를 메모리에서 먼저 알아보고 싶습니다. 그런데 틀리지 않는 보통의 해시 방식으로 5만 단어를 담으려면 약 200만 비트가 들어, 당시 메모리에 올리기 어려웠습니다.</p>
+    <p>Bloom은 여기서 방향을 바꿉니다. 단어 자체는 저장하지 않고 비트 몇 개만 켜 두되, <strong>사전에 없는 단어를 가끔 "있다"고 잘못 답하는 것을 허용</strong>했습니다. 논문은 이를 허용 오류(allowable error)라고 불렀습니다. 틀린 "있다"가 나와도 디스크 사전을 한 번 헛되이 볼 뿐입니다. 오류를 1/16로 허용하자 크기가 30만 비트 아래로 줄었습니다. 디스크를 보는 단어는 사전에 실제로 있는 5만 개에, 나머지 45만 개 중 1/16인 약 2.8만 개가 더해진 약 7.8만 개입니다. 50만 개를 모두 디스크에서 확인하는 것보다 디스크 접근이 84% 줄었습니다. 틀리지 않는 200만 비트짜리 해시였다면 디스크 접근은 5만 번이었을 것이니, 블룸 필터는 <strong>메모리를 200만 비트에서 30만 비트로 줄이는 대신 디스크 접근 약 2.8만 번을 더 낸</strong> 거래입니다.</p>
+
+    <div class="split">
+      <div class="card qry">
+        <h4>✅ 우선한 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>메모리에 들어가는 크기</strong></p>
+        <ul>
+          <li>원소 자체가 아니라 원소마다 비트 몇 개만 남긴다</li>
+          <li>필요한 크기가 원소의 길이와 무관해진다</li>
+        </ul>
+      </div>
+      <div class="card cmd">
+        <h4>🗑️ 버린 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>"있다"의 확실성, 그리고 원소 그 자체</strong></p>
+        <ul>
+          <li>넣은 적 없는 원소에 가끔 "있다"고 답한다</li>
+          <li>원소를 저장하지 않으니 목록을 꺼낼 수도, 정확히 셀 수도 없다</li>
+          <li>비트 하나를 여러 원소가 함께 쓴다. 그래서 하나만 골라 지울 수 없고, 정한 크기를 나중에 늘릴 수도 없다</li>
+        </ul>
+      </div>
+    </div>
+    <p>이 선택에서 생긴 개념: 허용 오류(거짓양성), 확률적 자료구조, 그리고 "싼 거름망으로 거르고 비싼 확인은 남은 것에만"이라는 패턴.</p>
+
+    <h3>얼마나 작아지나</h3>
+    <p>이메일 주소 10만 개를 파이썬 <code>set</code>에 넣은 경우와, 거짓양성 1%로 맞춘 블룸 필터에 넣은 경우를 비교했습니다. <code>set</code>의 크기는 파이썬이 할당한 메모리를 재는 표준 모듈 <code>tracemalloc</code>으로 쟀습니다.</p>
+    <p class="code-label">실측 — Python 3.12, macOS arm64, 이메일 형식 문자열 10만 개 (발췌)</p>
+<pre><code>set   : tracemalloc 기준 9.90 MiB   (원소당 약 831 비트, 문자열 포함)
+bloom : bytearray 119,814 B = 117 KiB (원소당 9.59 비트)
+비율  : 약 87배</code></pre>
+    <p><code>set</code>은 문자열을 통째로 들고 있으므로 주소가 길어질수록 커집니다. 블룸 필터는 원소의 길이와 상관없이 원소당 비트 수로만 크기가 정해집니다. 87배라는 숫자는 이 실험의 문자열 길이에서 나온 값이고, 원소가 길수록 차이는 더 벌어집니다.</p>
+  </section>
+
+  <!-- ============ 03 ============ -->
+  <section id="dial">
+    <h2 class="sec"><span class="num">03</span>오차는 고르는 값이다</h2>
+    <p class="kicker">비트 수 m, 원소 수 n, 해시 수 k 로 정해지는 거짓양성률</p>
+
+    <p>원소 n개를 넣은 뒤, 넣지 않은 원소가 "있을 수도"로 나올 확률은 대략 이렇습니다. 식의 e는 약 2.718인 수학 상수이고, 뒤에 나오는 ln은 e를 밑으로 하는 로그입니다.</p>
+<pre><code>p ≈ (1 − e<sup>−kn/m</sup>)<sup>k</sup></code></pre>
+    <p>읽는 법은 세 단계입니다.</p>
+    <ol>
+      <li>비트를 한 번 켤 때 어떤 비트 하나가 걸리지 않을 확률은 <code>1 − 1/m</code>입니다. 원소 n개가 k번씩, 모두 kn번 켜므로 그 비트가 끝까지 0일 확률은 <code>(1 − 1/m)^kn</code>입니다. m이 크면 이 값은 <code>e^(−kn/m)</code>에 아주 가까워집니다. m이 클 때 <code>(1 − 1/m)^m</code>이 <code>1/e</code>에 가까워진다는 성질을 쓴 것입니다.</li>
+      <li>그러니 어떤 비트가 1일 확률은 <code>1 − e^(−kn/m)</code>입니다.</li>
+      <li>넣지 않은 원소가 거짓양성이 되려면 자기 위치 k개가 <strong>전부</strong> 1이어야 하므로, 이 확률을 k번 곱합니다.</li>
+    </ol>
+
+    <h3>해시 수 k는 많을수록 좋은 게 아니다</h3>
+    <p>k를 늘리면 확인할 때 보는 비트가 많아져 우연히 다 1일 확률이 줄어듭니다. 하지만 원소마다 켜는 비트도 늘어 배열이 빨리 1로 찹니다. 두 효과가 맞서는 지점이 있고, 그 값은 <code>k = (m/n) × ln 2</code>, 대략 원소당 비트 수의 0.69배입니다. 이때 배열의 비트가 약 절반만 1이 됩니다. 아래 실측에서 원소당 9.6비트에 k=7을 썼을 때 1인 비트는 52%였습니다.</p>
+
+    <p class="code-label">실측 — 원소당 10비트로 고정하고 k만 바꿈. 넣지 않은 원소 20만 개로 거짓양성 셈 (발췌)</p>
+    <table>
+      <thead><tr><th>k</th><th>공식</th><th>이 환경 실측</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>9.52%</td><td>9.42%</td></tr>
+        <tr><td>4</td><td>1.18%</td><td>1.21%</td></tr>
+        <tr><td><strong>7</strong> (최적 근처)</td><td><strong>0.82%</strong></td><td><strong>0.81%</strong></td></tr>
+        <tr><td>14</td><td>1.90%</td><td>1.91%</td></tr>
+        <tr><td>20</td><td>5.46%</td><td>5.43%</td></tr>
+      </tbody>
+    </table>
+
+    <h3>목표 오차에서 크기를 거꾸로 구한다</h3>
+    <p>최적 k를 쓴다고 하면, 원하는 거짓양성률 p에 필요한 원소당 비트 수가 나옵니다.</p>
+<pre><code>m / n = −ln p / (ln 2)²  ≈  1.44 × log₂(1/p)</code></pre>
+    <table>
+      <thead><tr><th>목표 거짓양성률</th><th>원소당 비트 · k</th><th>이 환경 실측</th></tr></thead>
+      <tbody>
+        <tr><td>약 10%</td><td>5비트 · k=3</td><td>9.20% (공식 9.19%)</td></tr>
+        <tr><td>1%</td><td>9.6비트 · k=7</td><td>1.02% (공식 1.00%)</td></tr>
+        <tr><td>0.1%</td><td>14.4비트 · k=10</td><td>0.101% (공식 0.099%)</td></tr>
+      </tbody>
+    </table>
+    <p>세 가지를 읽어 낼 수 있습니다. 첫째, 공식과 실측이 소수점 둘째 자리까지 맞습니다. 둘째, 오차를 10배 줄일 때마다 원소당 약 4.8비트만 더 들어 1% → 0.1%가 9.6 → 14.4비트입니다. 셋째, <strong>원소당</strong> 비트 수에는 원소의 길이도 개수도 들어 있지 않습니다. 대신 전체 크기는 m = n × 원소당 비트라서, 몇 개를 넣을지는 처음에 정해야 합니다(04장). 모든 실행에서 넣은 원소를 "없다"고 답한 경우(거짓음성)는 0건이었습니다.</p>
+
+    <div class="box tip">
+      <span class="tag">✅ 실무 감각: 현장의 기본값</span>
+      <p>RocksDB 문서는 키당 약 10비트를 많은 워크로드에 잘 맞는 설정으로 소개하고, Cassandra는 테이블별 거짓양성률 기본값을 0.01(1%)로 둡니다(LeveledCompactionStrategy 테이블은 0.1, 곧 10%). 1,000만 개를 1%로 담으면 이론상 약 12MB입니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 04 ============ -->
+  <section id="debts">
+    <h2 class="sec"><span class="num">04</span>선택 ①이 남긴 두 숙제</h2>
+    <p class="kicker">정한 크기를 넘기면, 그리고 지워야 하면</p>
+
+    <p>03장에서 봤듯 전체 비트 수 m은 <strong>넣을 원소 수</strong> n에 원소당 비트를 곱한 값입니다. 블룸 필터는 처음 만들 때 "몇 개를 넣을지"를 정하고 그에 맞춰 m과 k를 고릅니다. 나중에 배열을 늘릴 수도 없습니다. 늘리면 01장의 위치 계산(<code>% m</code>)이 전부 바뀌는데, 원소를 저장하지 않았으니 다시 넣을 방법이 없습니다.</p>
+
+    <h3>숙제 1: 정한 개수를 넘겨 넣으면</h3>
+    <p>넣기는 실패하지 않습니다. 대신 오차가 조용히 커집니다. 10만 개·1%로 만든 필터에 더 넣어 보았습니다.</p>
+    <p class="code-label">실측 — m=958,506비트, k=7 (10만 개·1% 설계)에 n을 바꿔 넣음 (발췌)</p>
+    <table>
+      <thead><tr><th>넣은 개수</th><th>공식</th><th>이 환경 실측</th></tr></thead>
+      <tbody>
+        <tr><td>5만 (설계의 절반)</td><td>0.025%</td><td>0.024%</td></tr>
+        <tr><td><strong>10만 (설계대로)</strong></td><td><strong>1.00%</strong></td><td><strong>0.99%</strong></td></tr>
+        <tr><td>15만</td><td>5.79%</td><td>5.72%</td></tr>
+        <tr><td>20만 (두 배)</td><td>15.7%</td><td>15.6%</td></tr>
+        <tr><td>30만 (세 배)</td><td>43.6%</td><td>43.4%</td></tr>
+      </tbody>
+    </table>
+    <p>두 배를 넣으니 1%가 15%가 됐습니다. 에러도 경고도 없습니다. 거짓양성이 15%면 "있을 수도" 뒤의 비싼 확인이 그만큼 늘어나고, 거름망을 둔 이유가 점점 사라집니다.</p>
+
+    <h3>숙제 2: 지워야 하면</h3>
+    <p>원소 하나를 지우려고 그 원소의 비트 k개를 0으로 끄면, 같은 비트를 함께 쓰던 다른 원소의 확인 결과가 "없다"로 바뀝니다. 01장에서 "없다"가 틀리지 않는 이유는 비트를 끄는 동작이 없어서였습니다. 끄는 순간 그 보장이 무너집니다.</p>
+    <p class="code-label">실측 — 10만 개를 넣은 1% 필터에서 1만 개의 비트를 꺼 "삭제"함 (발췌)</p>
+<pre><code>남은 90,000개 중 "없다"로 답한 것: 35,935개 (39.9%)   <span class="c-com"># 전부 거짓음성</span></code></pre>
+    <p>지운 건 1만 개인데, 남은 원소의 40%가 "없다"가 됐습니다. 남은 원소는 비트 7개를 쓰고, 그중 하나라도 지운 원소와 겹쳐 꺼졌으면 "없다"가 되기 때문입니다.</p>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 핵심 통찰</span>
+      <p>블룸 필터가 주는 보장은 단 하나, <strong>"없다"는 틀리지 않는다</strong>입니다. 뒤의 세 선택은 모두 이 보장을 지킨 채 두 숙제 중 하나 또는 둘을 푸는 서로 다른 방법입니다.</p>
+    </div>
+  </section>
+
+  <!-- ============ 05 ============ -->
+  <section id="choice2">
+    <h2 class="sec"><span class="num">05</span>선택 ② 비트를 카운터로 바꾼다</h2>
+    <p class="kicker">Counting Bloom filter — 지우기를 얻으려고 메모리를 내주다</p>
+
+    <p>1998년의 웹 캐시 공유 연구(Summary Cache)는 웹 프록시 캐시 여러 대가 "내 캐시에 무엇이 있는지" 요약본을 서로 주고받는 방식을 제안했습니다. 웹 프록시 캐시는 사용자와 웹 서버 사이에서 받아 온 페이지를 저장해 두는 서버입니다. 요약본은 블룸 필터였는데, 캐시는 객체가 계속 들어오고 나가므로 지우기가 꼭 필요했습니다.</p>
+    <p>해법은 배열의 각 칸을 1비트 대신 <strong>작은 카운터</strong>로 바꾸는 것입니다. 넣을 때는 k개 칸을 1씩 올리고, 지울 때는 1씩 내립니다. 확인할 때는 k개 칸이 모두 0보다 큰지 봅니다. 다른 원소와 칸을 함께 써도 카운터가 "몇 명이 이 칸을 쓰는지"를 세고 있으니, 한 원소를 지워도 다른 원소의 칸은 0으로 떨어지지 않습니다.</p>
+
+    <div class="diagram">비트 배열         0 1 0 1 0 1 0 0 0 0 0 1 0 0 1 0     ← 위치 5가 왜 1인지 모른다
+카운터 배열       0 1 0 1 0 2 0 0 0 0 0 1 0 0 1 0     ← 위치 5는 두 원소가 쓰는 중
+
+"apple" 지우기 → 위치 1, 5, 11 을 1씩 내림
+카운터 배열       0 0 0 1 0 1 0 0 0 0 0 0 0 0 1 0     ← kiwi 의 3, 5, 14 는 그대로 0보다 크다</div>
+
+    <div class="split">
+      <div class="card qry">
+        <h4>✅ 우선한 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>지우기</strong></p>
+        <ul>
+          <li>넣었던 원소는 다른 원소를 해치지 않고 지울 수 있다</li>
+          <li>객체가 드나드는 캐시 목록 같은 집합을 계속 따라갈 수 있다</li>
+        </ul>
+      </div>
+      <div class="card cmd">
+        <h4>🗑️ 버린 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>메모리, 그리고 여전한 크기 고정</strong></p>
+        <ul>
+          <li>카운터는 보통 3~4비트라 같은 오차에 메모리가 3~4배 든다</li>
+          <li>넣은 적 없는 원소를 지우면 남의 카운터를 깎아 거짓음성이 생긴다. 지우기는 넣었던 것에만 해야 한다</li>
+          <li>배열을 늘릴 수 없는 것은 그대로다</li>
+        </ul>
+      </div>
+    </div>
+    <p>이 선택에서 생긴 개념: 카운팅 필터(counting filter), 그리고 "지우기는 넣었던 원소에만"이라는 사용 규칙.</p>
+  </section>
+
+  <!-- ============ 06 ============ -->
+  <section id="choice3">
+    <h2 class="sec"><span class="num">06</span>선택 ③ 다 차면 하나 더 쌓는다</h2>
+    <p class="kicker">Scalable Bloom filter — 개수를 몰라도 되게 하려고 확인 속도를 내주다</p>
+
+    <p>선택 ②는 지우기는 풀었지만 숙제 1, "몇 개를 넣을지 미리 알아야 한다"는 그대로 남겼습니다. 현실에서는 이 개수를 모르는 일이 많습니다. 넉넉하게 잡으면 메모리를 낭비하고, 적게 잡으면 04장의 표처럼 오차가 무너집니다.</p>
+    <p>2007년에 제안된 Scalable Bloom filter는 배열을 늘리는 대신 <strong>새 필터를 위에 쌓습니다.</strong> 첫 필터가 정한 개수만큼 차면, 더 큰 새 필터를 만들고 이후 원소는 새 필터에 넣습니다. 확인할 때는 쌓인 필터를 모두 보고, 하나라도 "있을 수도"면 "있을 수도"입니다.</p>
+    <p>필터가 쌓일수록 각 필터의 거짓양성이 합쳐지므로, 새 필터는 앞 필터보다 <strong>더 촘촘한 오차</strong>로 만듭니다. 오차를 P₀, P₀·r, P₀·r², …처럼 일정 비율 r(0과 1 사이, 조임 비율)로 줄여 갑니다. 합친 오차는 각 필터 오차의 합 P₀ + P₀r + P₀r² + … 을 넘지 않습니다. r이 1보다 작으니 뒤의 항은 점점 작아지고, 이런 합(등비급수)은 항을 아무리 더해도 <code>P₀ / (1 − r)</code>에 다가갈 뿐 넘지 않습니다. 예를 들어 P₀ = 0.5%, r = 0.5면 필터가 몇 개 쌓여도 합친 오차는 1% 아래입니다. "없다"는 모든 필터가 "없다"일 때만 나오므로 여전히 틀리지 않습니다.</p>
+
+    <div class="diagram">넣기가 계속 들어온다
+  필터 0  용량 C    오차 P₀        ← 가득 참
+  필터 1  용량 2C   오차 P₀·r      ← 가득 참
+  필터 2  용량 4C   오차 P₀·r²     ← 지금 여기에 넣는다
+
+확인 x  →  필터 2 확인 → "없다" → 필터 1 확인 → "없다" → 필터 0 확인 → …
+           (하나라도 "있을 수도"면 거기서 멈추고 "있을 수도")</div>
+
+    <p>Redis의 블룸 필터가 이 방식입니다. <code>BF.RESERVE 키 오차 용량</code>으로 만들고, 용량이 차면 직전 서브필터에 <code>EXPANSION</code>(기본 2)을 곱한 크기의 서브필터를 새로 쌓습니다. 쌓기를 원하지 않으면 <code>NONSCALING</code>을 주는데, 이때는 용량이 찬 뒤의 넣기가 에러로 실패합니다. Redis 문서는 서브필터가 쌓여도 넣기 속도는 같지만, 확인은 쌓인 필터 수만큼 느려진다고 설명합니다.</p>
+
+    <div class="split">
+      <div class="card qry">
+        <h4>✅ 우선한 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>개수를 몰라도 지켜지는 오차</strong></p>
+        <ul>
+          <li>예상 개수를 크게 틀려도 오차가 상한 안에 머문다</li>
+          <li>처음 크기를 작게 잡아도 되니 메모리를 미리 많이 잡지 않아도 된다</li>
+        </ul>
+      </div>
+      <div class="card cmd">
+        <h4>🗑️ 버린 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>확인 속도와 원소당 비트</strong></p>
+        <ul>
+          <li>"없다"를 확인하려면 쌓인 필터를 전부 봐야 한다</li>
+          <li>뒤의 필터일수록 오차가 촘촘해 원소당 비트가 더 든다</li>
+          <li>지우기는 여전히 안 된다</li>
+        </ul>
+      </div>
+    </div>
+    <p>이 선택에서 생긴 개념: 서브필터 쌓기, 확장 비율(expansion), 조임 비율(tightening ratio).</p>
+  </section>
+
+  <!-- ============ 07 ============ -->
+  <section id="choice4">
+    <h2 class="sec"><span class="num">07</span>선택 ④ 지우지 않고 다시 만든다</h2>
+    <p class="kicker">불변 파일과 필터를 한 몸으로 묶어 두 숙제를 구조로 없애다</p>
+
+    <div class="box note">
+      <span class="tag">📎 용어: LSM 트리와 SSTable</span>
+      <p><strong>LSM 트리</strong>는 쓰기를 메모리(<strong>memtable</strong>)에 모았다가, 키 순서로 정렬된 파일로 한 번에 내려 쓰는 저장 방식입니다. 이 파일을 <strong>SSTable</strong>(Sorted String Table)이라 부르고, 한 번 쓴 파일은 고치지 않습니다. 삭제도 옛 파일을 고치지 않고 "이 키는 지웠다"는 표시를 새 파일에 쓰는 것으로 처리합니다. 파일이 쌓이면 여러 개를 합쳐 새 파일로 다시 쓰는데, 이를 <strong>컴팩션</strong>이라고 합니다. RocksDB, Cassandra, HBase가 이 방식이고, RocksDB는 SSTable을 SST 파일이라고 부릅니다.</p>
+    </div>
+
+    <p>선택 ②는 메모리를 3~4배 내주고도 크기 고정을 남겼고, 선택 ③은 확인 속도를 내주고도 지우기를 남겼습니다. 둘 다 필터 자체를 고쳐서 숙제를 하나씩만 풀었습니다. 지금 블룸 필터를 가장 많이 쓰는 곳 중 하나인 LSM 계열 데이터베이스는 다른 길을 갔습니다. 필터를 고치는 대신, <strong>필터가 맡는 집합이 아예 바뀌지 않게</strong> 했습니다.</p>
+
+    <p>이 구조에서는 키 하나를 읽으려면 memtable과 여러 SSTable을 최신 것부터 차례로 뒤져야 합니다. 그런데 대부분의 파일에는 그 키가 없습니다. 답이 대부분 "없다"인, 블룸 필터에 딱 맞는 조건입니다. Cassandra 문서는 읽을 때 모든 SSTable 데이터 파일을 확인하지 않으려고 블룸 필터를 쓴다고 설명합니다.</p>
+
+    <div class="diagram">GET user:42
+  │
+  ├─ 메모리 (memtable)        없음
+  ├─ SSTable #7  필터: "없다"  → 파일 안 읽음
+  ├─ SSTable #6  필터: "없다"  → 파일 안 읽음
+  ├─ SSTable #5  필터: "있을 수도" → 파일 읽음 → 찾음 ✔
+  └─ #4 이하는 볼 필요 없음
+     (최신 파일부터 보므로 처음 찾은 값이 최신 값)</div>
+
+    <p>핵심은 필터를 <strong>파일 하나에 하나씩</strong> 만든다는 점입니다. RocksDB는 SST 파일을 쓸 때 그 파일의 키로 블룸 필터를 만들어 파일 안에 함께 넣습니다. 파일 두 개를 합칠 때도 두 필터를 합치지 않고, 새 파일의 키로 필터를 처음부터 다시 만듭니다. 이렇게 하면 04장의 두 숙제가 구조 안에서 사라집니다.</p>
+    <ul>
+      <li><strong>지울 일이 없다</strong>: 파일이 불변이니 그 파일의 키 집합도 불변이다. 지운다는 표시도 새 파일에 들어가므로 옛 파일과 그 필터는 고칠 일이 없다. 지워진 키는 컴팩션으로 새 파일이 만들어질 때 필터에서도 빠진다.</li>
+      <li><strong>개수를 정확히 안다</strong>: 필터를 만드는 순간 그 파일에 들어갈 키 개수를 이미 알고 있으니, 크기를 딱 맞출 수 있다.</li>
+    </ul>
+
+    <div class="split">
+      <div class="card qry">
+        <h4>✅ 우선한 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>단순한 필터를 그대로 쓰기</strong></p>
+        <ul>
+          <li>카운터도 서브필터도 없이 기본 블룸 필터로 충분하다</li>
+          <li>파일마다 "이 파일에는 없다"를 메모리에서 바로 판정한다</li>
+        </ul>
+      </div>
+      <div class="card cmd">
+        <h4>🗑️ 버린 것</h4>
+        <p style="font-size:15px;margin:4px 0 0"><strong>필터를 다시 만드는 비용</strong></p>
+        <ul>
+          <li>파일을 다시 쓸 때마다 키 전체로 필터를 다시 계산한다</li>
+          <li>파일이 바뀌지 않는 구조라서 가능하다. 계속 바뀌는 집합 하나를 따라가는 용도에는 이 방법을 쓸 수 없다</li>
+        </ul>
+      </div>
+    </div>
+    <p>이 선택에서 생긴 개념: 파일별 필터, 그리고 "불변 데이터에는 불변 필터"라는 짝.</p>
+  </section>
+
+  <!-- ============ 08 ============ -->
+  <section id="practice">
+    <h2 class="sec"><span class="num">08</span>실무 — 언제 쓰고 언제 쓰지 않나</h2>
+    <p class="kicker">Django · Redis · PostgreSQL 로 옮겨 보기</p>
+
+    <p>블룸 필터를 두기 전에 세 가지를 묻습니다.</p>
+    <ol class="ladder">
+      <li><strong>답이 대부분 "없다"인가?</strong>답이 대부분 "있다"면 거의 모든 질문이 결국 진짜 확인까지 가고, 필터 확인 비용만 늘어난다.</li>
+      <li><strong>"있을 수도" 뒤에 진짜 확인이 있나, 아니면 틀린 "있다"가 해가 없나?</strong>둘 다 아니면 거짓양성이 그대로 버그가 된다.</li>
+      <li><strong>진짜 확인이 몇 자릿수 비싼가?</strong>네트워크나 디스크를 건너는 확인이어야 거르는 의미가 있다.</li>
+    </ol>
+
+    <div class="box warn">
+      <span class="tag">⚠️ 프로세스 안이라면 그냥 set 을 쓴다</span>
+      <p>블룸 필터가 이기는 것은 CPU가 아니라 메모리와 I/O(디스크·네트워크 입출력)입니다. 같은 10만 개에서 "없는 키"를 확인하는 데 위의 파이썬 구현은 1.16µs, 파이썬 <code>set</code>은 0.021µs가 걸렸습니다(이 환경 실측, 1µs는 100만분의 1초). <code>set</code>이 메모리에 무리 없이 들어가면 <code>set</code>이 더 정확하고 더 빠릅니다. 블룸 필터는 <code>set</code>으로 들기엔 너무 크거나, 여러 프로세스·서버가 함께 봐야 하거나(Redis), 확인 대상이 디스크·네트워크 너머에 있을 때 꺼냅니다.</p>
+    </div>
+
+    <h3>패턴 1 — 없는 ID 조회를 DB 앞에서 거르기</h3>
+    <div class="box note">
+      <span class="tag">📎 용어: 캐시 관통</span>
+      <p><strong>캐시 관통(cache penetration)</strong>은 존재하지 않는 키로 요청이 계속 올 때 생기는 일입니다. 없는 값은 캐시에 남지 않으니 요청마다 캐시를 지나 DB까지 내려갑니다. 없는 ID를 차례로 긁는 봇이 대표적인 원인입니다.</p>
+    </div>
+    <p>존재하는 상품 ID를 Redis 블룸 필터에 넣어 두면, "없다"는 DB에 가지 않고 바로 404로 돌려보낼 수 있습니다.</p>
+<pre><code><span class="c-kw">import</span> redis
+<span class="c-kw">from</span> django.http <span class="c-kw">import</span> Http404
+
+r = redis.Redis()
+<span class="c-com"># 한 번만: 1,000만 개 · 1% 로 예약 (Redis 8+, 또는 Bloom 모듈)</span>
+<span class="c-com"># r.execute_command("BF.RESERVE", "product:ids", 0.01, 10_000_000)</span>
+
+<span class="c-kw">def</span> <span class="c-fn">get_product_or_404</span>(product_id):
+    <span class="c-kw">if</span> <span class="c-kw">not</span> r.execute_command(<span class="c-str">"BF.EXISTS"</span>, <span class="c-str">"product:ids"</span>, product_id):
+        <span class="c-kw">raise</span> Http404                     <span class="c-com"># "없다"는 확실 → DB 생략</span>
+    <span class="c-kw">try</span>:
+        <span class="c-kw">return</span> Product.objects.get(pk=product_id)   <span class="c-com"># "있을 수도" → 진짜 확인</span>
+    <span class="c-kw">except</span> Product.DoesNotExist:
+        <span class="c-kw">raise</span> Http404                     <span class="c-com"># 거짓양성이었다. 헛걸음 한 번</span></code></pre>
+    <p>이 패턴에서는 필터를 맞게 유지하는 쪽이 더 까다롭습니다. 따져 보면 두 방향의 무게가 다릅니다.</p>
+    <ul>
+      <li><strong>필터에 남아 있는 지워진 상품</strong>: 상품을 지워도 필터에서 지우지 않아도 된다. 남은 "있다"는 DB 확인이 걸러내는 거짓양성일 뿐이다. 지운 상품이 쌓이면 거짓양성이 늘 뿐이고, 필요하면 DB에서 필터를 새로 만든다.</li>
+      <li><strong>필터에 빠진 새 상품</strong>: 상품은 만들었는데 <code>BF.ADD</code>가 빠지면, 필터 자체의 오류는 아니지만 결과는 거짓음성과 같다. 있는 상품이 404가 난다. 이쪽은 허용되지 않는다.</li>
+    </ul>
+    <p>그래서 넣기는 <strong>DB 커밋보다 먼저, 넉넉하게</strong> 합니다. 트랜잭션이 롤백되면 필터에는 DB에 없는 ID가 하나 남지만, 이는 무해한 거짓양성입니다. 커밋한 뒤에 넣다가 그 사이에 프로세스가 죽으면 빠진 상품이 남습니다.</p>
+<pre><code><span class="c-kw">from</span> django.db <span class="c-kw">import</span> transaction
+
+<span class="c-kw">with</span> transaction.atomic():
+    r.execute_command(<span class="c-str">"BF.ADD"</span>, <span class="c-str">"product:ids"</span>, product.pk)   <span class="c-com"># 커밋보다 먼저</span>
+    product.save()</code></pre>
+    <p>여기서 <code>product.pk</code>는 저장 전에 정해져 있어야 합니다(UUID 기본키처럼 애플리케이션이 만드는 키). 자동 증가 키라면 저장 뒤에야 번호가 나오니, 같은 트랜잭션 안에서 <code>save()</code> 직후, 커밋 전에 넣습니다.</p>
+    <div class="box warn">
+      <span class="tag">⚠️ 필터 키가 없어도 "없다"가 나온다</span>
+      <p>Redis 문서에 따르면 <code>BF.EXISTS</code>는 원소를 넣은 적이 없을 때뿐 아니라 <strong>필터 키 자체가 없을 때도 0</strong>을 돌려줍니다. 필터 키가 지워지거나 Redis가 비워지면, 위 코드는 모든 상품을 404로 만듭니다. 필터를 DB로 다 채운 뒤에 "준비됨" 표시를 따로 두고, 그 표시가 없으면 필터를 건너뛰고 DB로 바로 가게 합니다.</p>
+    </div>
+
+    <h3>패턴 2 — "이미 처리했나"를 거르기</h3>
+    <p>이미 수집한 URL을 다시 수집하지 않거나, 이미 보낸 알림을 다시 보내지 않으려는 경우입니다. 여기서는 "있다"가 <strong>건너뛰기</strong>로 이어지므로 오류의 방향이 위험해집니다. 거짓양성은 처음 보는 URL을 "이미 수집"으로 보고 건너뛰는 일, 곧 <strong>조용한 누락</strong>입니다. 1%면 새 URL 100만 개 중 약 1만 개가 빠집니다.</p>
+    <p class="code-label">❌ 나쁜 예 — 필터의 "있다"를 그대로 믿는다</p>
+<pre><code><span class="c-kw">if</span> url <span class="c-kw">in</span> seen_filter:
+    <span class="c-kw">continue</span>          <span class="c-com"># 새 URL 의 약 1% 가 아무 흔적 없이 빠진다</span></code></pre>
+    <p class="code-label">✅ 좋은 예 — "있을 수도"일 때만 DB로 재확인한다</p>
+<pre><code><span class="c-kw">if</span> url <span class="c-kw">in</span> seen_filter <span class="c-kw">and</span> CrawledPage.objects.filter(url=url).exists():
+    <span class="c-kw">continue</span>          <span class="c-com"># 대부분의 새 URL 은 첫 조건에서 DB 없이 통과한다</span></code></pre>
+    <p>누락이 정말 괜찮은 곳도 있습니다. Redis 문서가 예로 드는 "이 사용자가 이 광고를 이미 봤나"처럼, 가끔 한 번 덜 보여 줘도 되는 곳이라면 재확인 없이 써도 됩니다.</p>
+    <p>오류의 방향을 거꾸로 이용한 예도 있습니다. CDN 업체 Akamai의 서버를 이틀 동안 살펴보니, 캐시에 들어간 객체 약 4억 개 가운데 74%가 딱 한 번만 요청됐습니다. 그래서 첫 요청에서는 필터에 넣기만 하고 캐시하지 않습니다. 정해진 기간 안에 두 번째 요청이 와서 필터가 "본 적 있다"고 하면, 그때 디스크 캐시에 저장합니다. 거짓양성이 나도 한 번만 요청될 객체를 하나 더 캐시할 뿐이라 해가 작습니다. 어느 쪽이든 <strong>틀린 "있다"가 무엇을 일으키는지</strong>를 먼저 정하고 나서 씁니다.</p>
+
+    <div class="box danger">
+      <span class="tag">⚠️ 블룸 필터는 유일성 보장이 아니다</span>
+      <p>아이디 중복 확인에 블룸 필터를 쓰더라도, 마지막 방어선은 DB의 유니크 제약입니다. 필터의 "없다"는 "지금 이 필터가 아는 범위에서 없다"일 뿐입니다. 아직 필터에 반영되지 않은 동시 가입은 막지 못합니다. 필터는 화면에 "사용 가능"을 빨리 보여 주는 용도이고, 저장할 때는 DB가 판정합니다.</p>
+    </div>
+
+    <h3>패턴 3 — PostgreSQL <code>bloom</code> 인덱스</h3>
+    <p>열이 많은 테이블에서 아무 열이나 몇 개씩 골라 같음(<code>=</code>) 조건으로 찾는 경우입니다. 여러 열을 묶은 btree 인덱스는 첫 번째 열부터 순서대로 조건이 있어야 잘 쓰입니다. <code>(a, b, c)</code>로 만든 인덱스는 b만으로 찾을 때 거의 도움이 되지 않습니다(PostgreSQL 18의 skip scan은 앞 열의 값 종류가 적을 때에 한해 이 약점을 줄입니다). 그래서 조합마다 인덱스를 만들거나 열마다 하나씩 만들어야 합니다. <code>bloom</code> 인덱스는 행마다 그 행의 열 값들로 작은 블룸 필터를 하나씩 만들어(이를 서명이라 부릅니다) 인덱스 하나로 아무 조합에나 답합니다.</p>
+<pre><code><span class="c-kw">CREATE EXTENSION</span> bloom;
+<span class="c-com">-- 서명 80비트, 열마다 켜는 비트 수 지정 (PostgreSQL 공식 문서 예시)</span>
+<span class="c-kw">CREATE INDEX</span> bloomidx <span class="c-kw">ON</span> tbloom <span class="c-kw">USING</span> bloom (i1, i2, i3)
+    <span class="c-kw">WITH</span> (length=<span class="c-num">80</span>, col1=<span class="c-num">2</span>, col2=<span class="c-num">2</span>, col3=<span class="c-num">4</span>);</code></pre>
+    <p>공식 문서의 예시에서는 6개 열에 단일 열 btree 인덱스를 하나씩 만들면 합계가 531MB로, bloom 인덱스 하나의 세 배를 넘었습니다. 대신 bloom 인덱스는 같음 조건만 지원하고 범위 조건(<code>&lt;</code>, <code>BETWEEN</code>)은 못 씁니다. 실행 계획(<code>EXPLAIN</code>으로 보는, DB가 쿼리를 처리할 순서)에 <code>Recheck Cond</code>와 <code>Rows Removed by Index Recheck</code>가 보이는데, 블룸 필터의 "있을 수도"를 테이블의 실제 값으로 다시 확인한 흔적입니다.</p>
+
+    <h3>크기 잡기</h3>
+    <ul>
+      <li>넣을 개수 n은 넉넉하게 잡는다. 개수를 모르면 Redis처럼 쌓는 방식을 쓴다.</li>
+      <li>거짓양성률 자체보다 "거짓양성 한 번에 드는 비용 × 질문 수"로 판단한다. DB 조회 하나가 싸면 5~10%도 충분할 수 있다.</li>
+    </ul>
+  </section>
+
+  <!-- ============ 09 ============ -->
+  <section id="cheatsheet">
+    <h2 class="sec"><span class="num">09</span>한 장 요약 치트시트</h2>
+
+    <div class="tldr">
+      <span class="tag">"있다"가 불확실한데 왜 유용한가</span>
+      <p><strong>블룸 필터는 혼자 답하지 않고, 비싼 확인 앞에서 거르는 데 쓰기 때문입니다.</strong> 넣을 때 비트를 켜기만 하므로 넣은 원소에 대한 "없다"는 틀리지 않고, 그 답이 나온 질문은 DB·디스크·네트워크 확인을 건너뜁니다. "있을 수도"는 뒤의 진짜 확인으로 넘어가 거기서 바로잡히므로 최종 답은 틀리지 않습니다. 원소를 저장하지 않으니 이 거름망은 아주 작게 만들 수 있습니다.</p>
+    </div>
+
+    <table>
+      <thead><tr><th>단계</th><th>우선한 것 / 버린 것</th><th>생긴 개념</th></tr></thead>
+      <tbody>
+        <tr><td>① 원소를 저장하지 않는다</td><td>메모리 크기 / "있다"의 확실성, 지우기, 크기 늘리기</td><td>허용 오류, 확률적 자료구조</td></tr>
+        <tr><td>② 비트를 카운터로</td><td>지우기 / 메모리 3~4배, 여전한 크기 고정</td><td>카운팅 필터</td></tr>
+        <tr><td>③ 다 차면 쌓는다</td><td>개수를 몰라도 되는 오차 / 확인 속도, 원소당 비트</td><td>서브필터, 확장·조임 비율</td></tr>
+        <tr><td>④ 불변 파일과 함께 다시 만든다 (LSM)</td><td>단순한 필터 그대로 / 다시 만드는 CPU, 불변 집합에만</td><td>파일별 필터</td></tr>
+      </tbody>
+    </table>
+
+    <table>
+      <thead><tr><th>기억할 것</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td>"없다"가 확실한 이유</td><td>넣기는 비트를 켜기만 한다. 끄는 동작이 없으니 넣은 원소의 비트는 계속 1이다</td></tr>
+        <tr><td>"있다"가 틀리는 이유</td><td>비트에 주인이 적혀 있지 않아, 남들이 켠 비트가 우연히 내 자리를 다 채울 수 있다</td></tr>
+        <tr><td>크기 공식</td><td>1%면 원소당 약 9.6비트·k=7. 10배 줄일 때마다 +4.8비트. 원소 길이와 무관</td></tr>
+        <tr><td>정한 개수를 넘기면</td><td>에러 없이 오차만 커진다. 두 배 넣으면 1%가 약 15%</td></tr>
+        <tr><td>비트를 끄면</td><td>거짓음성이 생겨 유일한 보장이 깨진다. 지우기는 카운팅 필터나 다시 만들기로</td></tr>
+        <tr><td>쓰기 전 질문</td><td>답이 대부분 "없다"인가 · "있을 수도" 뒤에 진짜 확인이 있나 · 그 확인이 훨씬 비싼가</td></tr>
+        <tr><td>오류의 방향</td><td>틀린 "있다"가 헛걸음이면 안전하고, 건너뛰기면 누락이다. 누락이 안 되면 재확인한다</td></tr>
+        <tr><td>필터 유지</td><td>넣기는 커밋 전에 넉넉하게. 빠뜨리면 있는 것을 "없다"고 답하고, 남는 것은 무해하다</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer class="wrap">
+  <h3>더 읽어보기 (출처)</h3>
+  <ul>
+    <li>Burton H. Bloom (1970) — <a href="https://www.cs.princeton.edu/courses/archive/spr05/cos598E/bib/p422-bloom.pdf">Space/Time Trade-offs in Hash Coding with Allowable Errors</a> (하이픈 예시, 200만 비트 대 30만 비트, 디스크 접근 84% 감소, "allowable error")</li>
+    <li>Wikipedia — <a href="https://en.wikipedia.org/wiki/Bloom_filter">Bloom filter</a> (거짓양성률 공식·최적 k, 1%에 9.6비트·10배당 4.8비트, 카운터 3~4비트)</li>
+    <li>Fan, Cao, Almeida, Broder (SIGCOMM 1998, 저널판 2000) — <a href="https://pages.cs.wisc.edu/~jussara/papers/00ton.pdf">Summary Cache: A Scalable Wide-Area Web Cache Sharing Protocol</a> (카운팅 블룸 필터의 출발점, 링크는 저널판)</li>
+    <li>Almeida, Baquero, Preguiça, Hutchison (2007) — <a href="https://asc.di.fct.unl.pt/~nmp/pubs/ipl-2007.pdf">Scalable Bloom Filters</a> (필터 쌓기, 조임 비율로 합친 오차 상한)</li>
+    <li>Kirsch, Mitzenmacher — <a href="https://www.eecs.harvard.edu/~michaelm/postscripts/rsa2008.pdf">Less Hashing, Same Performance: Building a Better Bloom Filter</a> (해시 두 개로 위치 k개 만들기)</li>
+    <li>Maggs, Sitaraman (2015) — <a href="https://people.cs.umass.edu/~ramesh/Site/HOME_files/CCRpaper_1.pdf">Algorithmic Nuggets in Content Delivery</a> (Akamai 이틀치 관찰에서 캐시 객체 약 74%가 한 번만 요청, 정해진 기간 안 두 번째 요청에서 캐시)</li>
+    <li>RocksDB Wiki — <a href="https://github.com/facebook/rocksdb/wiki/RocksDB-Bloom-Filter">RocksDB Bloom Filter</a> (키당 10비트, SST 파일마다 필터, 합칠 때 새로 만듦)</li>
+    <li>Apache Cassandra 4.0 — <a href="https://cassandra.apache.org/doc/4.0/cassandra/operating/bloom_filters.html">Bloom Filters</a> (읽기 경로의 SSTable 거르기, <code>bloom_filter_fp_chance</code> 기본값 0.01, LeveledCompactionStrategy 테이블은 0.1)</li>
+    <li>PostgreSQL 18 — <a href="https://www.postgresql.org/docs/18/bloom.html">bloom 확장</a> (서명·재확인, 같음 조건만, btree 6개 531MB 비교) · <a href="https://www.postgresql.org/docs/18/indexes-multicolumn.html">다중 열 인덱스</a> (btree 다중 열 인덱스의 앞 열 조건, skip scan)</li>
+    <li>Redis — <a href="https://redis.io/docs/latest/develop/data-types/probabilistic/bloom-filter/">Bloom filter</a> (쌓이면 확인이 느려짐, 광고 노출 예) · <a href="https://redis.io/docs/latest/commands/bf.exists/">BF.EXISTS</a> (필터 키가 없어도 0) · <a href="https://redis.io/docs/latest/commands/bf.reserve/">BF.RESERVE</a> (용량·오차·<code>EXPANSION</code>, <code>NONSCALING</code>은 용량이 차면 에러)</li>
+    <li>Redis 블로그 — <a href="https://redis.io/blog/redis-8-ga/">Redis 8 GA</a> (Redis 8부터 블룸 필터 명령 기본 포함, 코드 예시의 버전 근거)</li>
+  </ul>
+  <a class="backlink" href="index.html">← 금주의 키워드 전체 목록</a>
+</footer>
+
+<!-- TOC 현재 위치 하이라이트 -->
+<script>
+  const links = [...document.querySelectorAll('nav.toc a')];
+  const map = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      const a = map.get(e.target.id);
+      if (a && e.isIntersecting) {
+        links.forEach(l => { l.style.color = ''; l.style.fontWeight = ''; });
+        a.style.color = 'var(--accent)';
+        a.style.fontWeight = '700';
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>
